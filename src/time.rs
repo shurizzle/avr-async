@@ -1,6 +1,6 @@
 use core::{future::Future, marker::PhantomData, task::Poll};
 
-use avr_device::interrupt::CriticalSection;
+use avr_device::interrupt::{self, CriticalSection};
 use num_traits::{Bounded, CheckedAdd, NumAssignOps, One, Unsigned, Zero};
 
 use crate::runtime::State;
@@ -41,6 +41,11 @@ impl<I: UInt> TickCounter<I> {
     #[inline(always)]
     pub fn get(&self) -> I {
         self.snapshot
+    }
+
+    #[inline]
+    pub fn get_real(&self) -> I {
+        interrupt::free(|_cs| self.counter)
     }
 
     #[inline(always)]
