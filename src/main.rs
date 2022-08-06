@@ -4,22 +4,23 @@
 
 extern crate avr_async;
 
-use core::{future::Future, task::Poll};
+use core::{future::Future, pin::Pin, task::Poll};
 
+use avr_async::boxed::Box;
 use panic_halt as _;
 
-pub struct Ticker<'a>(&'a mut Option<u8>);
+pub struct Ticker(&'static mut Option<u8>);
 
-impl<'a> Ticker<'a> {
-    pub fn next(&self) -> NextTick<'a> {
-        NextTick {
-            ticker: self as *const _ as *mut _,
-        }
+impl Ticker {
+    #[allow(clippy::should_implement_trait)]
+    #[inline]
+    pub fn next(&mut self) -> NextTick {
+        NextTick { ticker: self }
     }
 }
 
 pub struct NextTick<'a> {
-    ticker: *mut Ticker<'a>,
+    ticker: &'a mut Ticker,
 }
 
 impl<'a> Future for NextTick<'a> {
@@ -29,7 +30,7 @@ impl<'a> Future for NextTick<'a> {
         mut self: core::pin::Pin<&mut Self>,
         _cx: &mut core::task::Context<'_>,
     ) -> core::task::Poll<Self::Output> {
-        unsafe { &mut *self.ticker }
+        self.ticker
             .0
             .take()
             .map(Poll::Ready)
@@ -37,12 +38,11 @@ impl<'a> Future for NextTick<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct State<const N: usize> {
     half: bool,
     changed: bool,
     current: u8,
-    snapshots: [Option<u8>; N],
+    snapshots: Pin<Box<[Option<u8>; N]>>,
 }
 
 impl<const N: usize> Default for State<N> {
@@ -59,13 +59,13 @@ impl<const N: usize> State<N> {
             half: false,
             changed: false,
             current: 0,
-            snapshots: [Default::default(); N],
+            snapshots: Box::pin([Default::default(); N]),
         }
     }
 
     #[allow(clippy::cast_ref_to_mut)]
     #[inline(always)]
-    pub fn ticker<'a, 'b: 'a>(&'b self, index: usize) -> Ticker<'a> {
+    pub fn ticker<'a, 'b: 'a>(&'b self, index: usize) -> Ticker {
         Ticker(unsafe { &mut *(&self.snapshots[index] as *const _ as *mut _) })
     }
 
@@ -155,9 +155,9 @@ fn main() -> ! {
         tc1.timsk1.write(|w| w.ocie1a().set_bit());
     }
 
-    let ticker = runtime().state().ticker(0);
+    let mut ticker = runtime().state().ticker(0);
 
-    avr_async::executor::run(&mut rtm, async {
+    avr_async::executor::run(&mut rtm, async move {
         let mut status = false;
 
         loop {

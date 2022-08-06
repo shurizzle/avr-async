@@ -1,6 +1,7 @@
 #![no_std]
-#![feature(asm_experimental_arch)]
+#![feature(asm_experimental_arch, const_mut_refs, const_trait_impl, const_pin)]
 
+pub mod boxed;
 pub mod executor;
 pub mod runtime;
 pub mod time;

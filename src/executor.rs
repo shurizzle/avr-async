@@ -26,7 +26,7 @@ static VTABLE: RawWakerVTable = {
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };
 
-pub fn run<S: State>(runtime: &mut Runtime<S>, task: impl Future<Output = ()>) -> ! {
+pub fn run<'a, S: State>(runtime: &'a mut Runtime<S>, task: impl Future<Output = ()> + 'a) -> ! {
     let waker = unsafe {
         Waker::from_raw(RawWaker::new(
             core::mem::transmute(&runtime.ready as *const _),
