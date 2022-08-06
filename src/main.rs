@@ -109,9 +109,9 @@ impl<'a, const N: usize> avr_async::runtime::State for TickState<'a, N> {
 
 type State<const N: usize> = TickState<'static, N>;
 
-static mut __RUNTIME: *mut avr_async::runtime::Runtime<State<1>> = core::ptr::null_mut();
+static mut __RUNTIME: *mut avr_async::runtime::DefaultRuntime<State<1>> = core::ptr::null_mut();
 
-pub fn runtime() -> &'static mut avr_async::runtime::Runtime<State<1>> {
+pub fn runtime() -> &'static mut avr_async::runtime::DefaultRuntime<State<1>> {
     unsafe { &mut *__RUNTIME }
 }
 
@@ -159,7 +159,7 @@ fn main() -> ! {
     led2.set_low();
 
     let (state, [ticker]) = State::new_uninit(Pin::new(unsafe { &mut Q }));
-    let mut rtm = avr_async::runtime::Runtime::new(state);
+    let mut rtm = avr_async::runtime::DefaultRuntime::new(state, dp.CPU);
     unsafe { __RUNTIME = &mut rtm as *mut _ };
 
     // Set TIMER1_COMPA to 1/4s
@@ -198,5 +198,6 @@ use avr_device::interrupt;
 
 #[interrupt(atmega32u4)]
 unsafe fn TIMER1_COMPA() {
+    use avr_async::runtime::Runtime;
     runtime().modify(|state| state.tick());
 }
