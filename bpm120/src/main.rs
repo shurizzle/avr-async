@@ -6,6 +6,8 @@ use core::{future::Future, mem::MaybeUninit, pin::Pin, task::Poll};
 
 use panic_halt as _;
 
+use avr_device::interrupt;
+
 pub struct Ticker<'a>(&'a mut Option<u8>);
 
 impl<'a> Ticker<'a> {
@@ -139,6 +141,7 @@ fn reset_irqs(dp: &arduino_hal::Peripherals) {
 static mut Q: [Option<u8>; 1] = [None; 1];
 
 #[arduino_hal::entry]
+#[inline(always)]
 fn main() -> ! {
     unsafe { ::core::arch::asm!("cli") };
 
@@ -171,31 +174,33 @@ fn main() -> ! {
         tc1.timsk1.write(|w| w.ocie1a().set_bit());
     }
 
-    avr_async::executor::run(&mut rtm, async move {
-        let mut ticker = ticker;
-        let mut status = false;
+    avr_async::executor::run(
+        &mut rtm,
+        avr_async::task_compose!(async move {
+            let mut ticker = ticker;
+            let mut status = false;
 
-        loop {
-            if ticker.next().await == 0 {
-                led1.set_low();
-                led2.set_low();
-            } else if status {
-                led1.set_low();
-                led2.set_high();
-                status = false;
-            } else {
-                led1.set_high();
-                led2.set_low();
-                status = true;
+            loop {
+                if ticker.next().await == 0 {
+                    led1.set_low();
+                    led2.set_low();
+                } else if status {
+                    led1.set_low();
+                    led2.set_high();
+                    status = false;
+                } else {
+                    led1.set_high();
+                    led2.set_low();
+                    status = true;
+                }
             }
-        }
-    })
+        }),
+    )
 }
 
-use avr_device::interrupt;
-
-#[interrupt(atmega32u4)]
-unsafe fn TIMER1_COMPA() {
+#[doc(hidden)]
+#[export_name = "__vector_17"]
+pub unsafe extern "avr-interrupt" fn timer() {
     use avr_async::runtime::Runtime;
     runtime().modify(|state| state.tick());
 }

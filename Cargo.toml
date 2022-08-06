@@ -1,5 +1,5 @@
 [workspace]
-members = ["avr-async", "bpm120"]
+members = ["avr-async", "avr-async-macros", "bpm120"]
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]

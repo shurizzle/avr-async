@@ -49,6 +49,7 @@ static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
 pub mod executor;
 pub mod runtime;
+pub mod task;
 #[cfg(feature = "time")]
 pub mod time;
 

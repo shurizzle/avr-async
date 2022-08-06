@@ -36,9 +36,19 @@ name = "avr-async"
 version = "0.1.0"
 dependencies = [
  "arduino-hal",
+ "avr-async-macros",
  "avr-device",
  "num-traits",
  "pin-utils",
+]
+
+[[package]]
+name = "avr-async-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
