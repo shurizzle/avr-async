@@ -22,9 +22,10 @@ impl<S: State> Runtime<S> {
     /// This function is marked as unsafe to remember you to call it in a critical section (usually
     /// in an interrupt)
     #[inline]
-    pub unsafe fn modify<F: Fn(&mut S)>(&mut self, f: F) {
-        f(&mut self.state);
-        self.ready = true;
+    pub unsafe fn modify<F: Fn(&mut S) -> bool>(&mut self, f: F) {
+        if f(&mut self.state) {
+            self.ready = true;
+        }
     }
 
     #[inline(always)]

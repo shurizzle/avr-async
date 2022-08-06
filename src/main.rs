@@ -1,29 +1,28 @@
 #![no_std]
 #![no_main]
-#![feature(abi_avr_interrupt, asm_experimental_arch)]
+#![feature(abi_avr_interrupt, asm_experimental_arch, const_pin, const_mut_refs)]
 
 extern crate avr_async;
 
-use core::{future::Future, pin::Pin, task::Poll};
+use core::{future::Future, mem::MaybeUninit, pin::Pin, task::Poll};
 
-use avr_async::boxed::Box;
 use panic_halt as _;
 
-pub struct Ticker(&'static mut Option<u8>);
+pub struct Ticker<'a>(&'a mut Option<u8>);
 
-impl Ticker {
+impl<'a> Ticker<'a> {
     #[allow(clippy::should_implement_trait)]
     #[inline]
-    pub fn next(&mut self) -> NextTick {
+    pub fn next<'b>(&'b mut self) -> NextTick<'b, 'a> {
         NextTick { ticker: self }
     }
 }
 
-pub struct NextTick<'a> {
-    ticker: &'a mut Ticker,
+pub struct NextTick<'a, 'b> {
+    ticker: &'a mut Ticker<'b>,
 }
 
-impl<'a> Future for NextTick<'a> {
+impl<'a, 'b> Future for NextTick<'a, 'b> {
     type Output = u8;
 
     fn poll(
@@ -38,40 +37,54 @@ impl<'a> Future for NextTick<'a> {
     }
 }
 
-pub struct State<const N: usize> {
+pub struct TickState<'a, const N: usize> {
     half: bool,
     changed: bool,
     current: u8,
-    snapshots: Pin<Box<[Option<u8>; N]>>,
+    snapshots: Pin<&'a mut [Option<u8>; N]>,
 }
 
-impl<const N: usize> Default for State<N> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const N: usize> State<N> {
-    #[inline(always)]
-    pub fn new() -> Self {
-        State {
-            half: false,
-            changed: false,
-            current: 0,
-            snapshots: Box::pin([Default::default(); N]),
+impl<'a, const N: usize> TickState<'a, N> {
+    pub fn new(mut q: Pin<&'a mut [Option<u8>; N]>) -> (Self, [Ticker<'a>; N]) {
+        for e in q.iter_mut() {
+            *e = None;
         }
+
+        Self::new_uninit(q)
+    }
+
+    pub fn new_uninit(mut q: Pin<&'a mut [Option<u8>; N]>) -> (Self, [Ticker<'a>; N]) {
+        let tickers = {
+            let mut tickers = MaybeUninit::<[Ticker<'a>; N]>::uninit();
+            {
+                let tickers = unsafe { &mut *tickers.as_mut_ptr() };
+                for (i, t) in tickers.iter_mut().enumerate() {
+                    t.0 = unsafe { &mut *q.as_mut_ptr().add(i) };
+                }
+            }
+            unsafe { tickers.assume_init() }
+        };
+
+        (
+            TickState {
+                half: false,
+                changed: false,
+                current: 0,
+                snapshots: q,
+            },
+            tickers,
+        )
     }
 
     #[allow(clippy::cast_ref_to_mut)]
     #[inline(always)]
-    pub fn ticker<'a, 'b: 'a>(&'b self, index: usize) -> Ticker {
+    pub fn ticker(&self, index: usize) -> Ticker<'a> {
         Ticker(unsafe { &mut *(&self.snapshots[index] as *const _ as *mut _) })
     }
 
     /// # Safety
     #[inline]
-    pub unsafe fn tick(&mut self) {
+    pub unsafe fn tick(&mut self) -> bool {
         if self.half {
             self.half = false;
             self.changed = true;
@@ -79,10 +92,11 @@ impl<const N: usize> State<N> {
         } else {
             self.half = true;
         }
+        self.changed
     }
 }
 
-impl<const N: usize> avr_async::runtime::State for State<N> {
+impl<'a, const N: usize> avr_async::runtime::State for TickState<'a, N> {
     fn snapshot(&mut self, _cs: &interrupt::CriticalSection) {
         if self.changed {
             self.snapshots.fill(Some(self.current));
@@ -92,6 +106,8 @@ impl<const N: usize> avr_async::runtime::State for State<N> {
         }
     }
 }
+
+type State<const N: usize> = TickState<'static, N>;
 
 static mut __RUNTIME: *mut avr_async::runtime::Runtime<State<1>> = core::ptr::null_mut();
 
@@ -122,6 +138,8 @@ fn reset_irqs(dp: &arduino_hal::Peripherals) {
     dp.BOOT_LOAD.spmcsr.reset(); // disable SPM_READY
 }
 
+static mut Q: [Option<u8>; 1] = [None; 1];
+
 #[arduino_hal::entry]
 fn main() -> ! {
     unsafe { ::core::arch::asm!("cli") };
@@ -140,7 +158,7 @@ fn main() -> ! {
     led1.set_low();
     led2.set_low();
 
-    let state = State::new();
+    let (state, [ticker]) = State::new_uninit(Pin::new(unsafe { &mut Q }));
     let mut rtm = avr_async::runtime::Runtime::new(state);
     unsafe { __RUNTIME = &mut rtm as *mut _ };
 
@@ -155,9 +173,8 @@ fn main() -> ! {
         tc1.timsk1.write(|w| w.ocie1a().set_bit());
     }
 
-    let mut ticker = runtime().state().ticker(0);
-
     avr_async::executor::run(&mut rtm, async move {
+        let mut ticker = ticker;
         let mut status = false;
 
         loop {
