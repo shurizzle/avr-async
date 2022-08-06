@@ -165,7 +165,7 @@ fn main() -> ! {
     // Set TIMER1_COMPA to 1/4s
     {
         let tc1 = dp.TC1;
-        tc1.tccr1a.write(|w| w.wgm1().bits(0b11).wgm1().bits(0));
+        tc1.tccr1a.write(|w| w.wgm1().bits(0));
         tc1.tccr1b.write(|w| w.cs1().bits(5).wgm1().bits(0b01));
         tc1.tcnt1.write(|w| unsafe { w.bits(0) });
         tc1.ocr1a.write(|w| unsafe { w.bits(3907) });

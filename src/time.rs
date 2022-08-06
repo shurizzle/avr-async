@@ -32,7 +32,7 @@ impl<I: UInt> TickCounter<I> {
 
     /// # Safety
     /// This function is marked as unsafe to remember you to call it in a critical section (usually
-    /// in an interrupt)
+    /// an interrupt)
     #[inline(always)]
     pub unsafe fn inc(&mut self) {
         self.counter += One::one();
