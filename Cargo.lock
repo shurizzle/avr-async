@@ -37,13 +37,8 @@ version = "0.1.0"
 dependencies = [
  "arduino-hal",
  "avr-device",
- "embedded-hal",
- "nb 1.0.0",
  "num-traits",
- "panic-halt",
  "pin-utils",
- "ufmt",
- "vcell",
 ]
 
 [[package]]
@@ -92,6 +87,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5deb64efa5bd81e31fcd1938615a6d98c82eafcbcd787162b6f63b91d6bac5b3"
 dependencies = [
  "rustc_version",
+]
+
+[[package]]
+name = "bpm120"
+version = "0.1.0"
+dependencies = [
+ "arduino-hal",
+ "avr-async",
+ "avr-device",
+ "panic-halt",
 ]
 
 [[package]]

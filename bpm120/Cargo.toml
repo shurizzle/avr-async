@@ -1,0 +1,23 @@
+[package]
+name = "bpm120"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bpm120"
+test = false
+bench = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+panic-halt = "0.2.0"
+avr-device = "0.3.4"
+
+[dependencies.arduino-hal]
+git = "https://github.com/rahix/avr-hal"
+rev = "1aacefb335517f85d0de858231e11055d9768cdf"
+features = ["arduino-leonardo"]
+
+[dependencies.avr-async]
+path = "../avr-async"
