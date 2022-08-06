@@ -2,8 +2,6 @@
 #![no_main]
 #![feature(abi_avr_interrupt, asm_experimental_arch, const_pin, const_mut_refs)]
 
-extern crate avr_async;
-
 use core::{future::Future, mem::MaybeUninit, pin::Pin, task::Poll};
 
 use panic_halt as _;

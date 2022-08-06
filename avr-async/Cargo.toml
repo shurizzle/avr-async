@@ -14,3 +14,8 @@ num-traits = { version = "0.2.15", default-features = false }
 git = "https://github.com/rahix/avr-hal"
 rev = "1aacefb335517f85d0de858231e11055d9768cdf"
 features = ["arduino-leonardo"]
+
+[features]
+default = []
+time = []
+alloc = []
