@@ -5,24 +5,21 @@ use core::{
     task::Poll,
 };
 
-use either::Either;
+use crate::task;
 
-use crate::{queue::UniqueQueue, task};
+use super::{queue::UniqueEnqueue, UniqueQueue};
 
 pub struct Mutex<T, const N: usize> {
-    locking: Option<usize>,
+    lock: Option<usize>,
     value: T,
-    // TODO: Use async unique queue instead
     queue: UniqueQueue<usize, N>,
 }
 
 impl<T, const N: usize> Mutex<T, N> {
     #[inline(always)]
-    pub const fn new(initial: T) -> Self {
-        crate::sealed::greater_than_0::<N>();
-
+    pub fn new(initial: T) -> Self {
         Self {
-            locking: None,
+            lock: None,
             value: initial,
             queue: UniqueQueue::new(),
         }
@@ -40,8 +37,8 @@ impl<T, const N: usize> Mutex<T, N> {
     }
 
     fn internal_try_lock(&mut self, tid: usize) -> Option<()> {
-        if self.locking.is_none() {
-            self.locking = Some(tid);
+        if self.lock.is_none() {
+            self.lock = Some(tid);
             Some(())
         } else {
             None
@@ -72,13 +69,17 @@ impl<'a, T, const N: usize> DerefMut for MutexGuard<'a, T, N> {
 impl<'a, T, const N: usize> Drop for MutexGuard<'a, T, N> {
     #[inline]
     fn drop(&mut self) {
-        self.mutex.locking = self.mutex.queue.dequeue();
+        self.mutex.lock = self.mutex.queue.try_dequeue();
     }
 }
 
 #[allow(clippy::type_complexity)]
 pub struct WaitLock<'a, T, const N: usize> {
-    state: Option<Either<(&'a mut Mutex<T, N>, usize), EnqueueLock<'a, T, N>>>,
+    state: Option<(
+        &'a mut Mutex<T, N>,
+        usize,
+        Option<UniqueEnqueue<'a, usize, N>>,
+    )>,
 }
 
 impl<'a, T, const N: usize> WaitLock<'a, T, N> {
@@ -86,11 +87,13 @@ impl<'a, T, const N: usize> WaitLock<'a, T, N> {
     pub fn new(mutex: &'a mut Mutex<T, N>, tid: usize) -> Self {
         if mutex.internal_try_lock(tid).is_some() {
             Self {
-                state: Some(Either::Left((mutex, tid))),
+                state: Some((mutex, tid, None)),
             }
         } else {
+            let queue = unsafe { &mut *(&mut mutex.queue as *mut UniqueQueue<usize, N>) };
+
             Self {
-                state: Some(Either::Right(EnqueueLock::new(mutex, tid))),
+                state: Some((mutex, tid, Some(queue.enqueue(tid)))),
             }
         }
     }
@@ -99,69 +102,30 @@ impl<'a, T, const N: usize> WaitLock<'a, T, N> {
 impl<'a, T, const N: usize> Future for WaitLock<'a, T, N> {
     type Output = MutexGuard<'a, T, N>;
 
-    fn poll(
-        self: core::pin::Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        let this = Pin::get_mut(self);
-        let mut state = this.state.take().unwrap();
+    fn poll(self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+        let (mutex, tid, mut state) = this.state.take().unwrap();
 
         let (state, res) = loop {
             match state {
-                Either::Left((mutex, tid)) => {
-                    break match mutex.locking {
+                None => {
+                    break match mutex.lock {
                         Some(x) if x == tid => (None, Poll::Ready(MutexGuard { mutex })),
-                        _ => (Some(Either::Left((mutex, tid))), Poll::Pending),
+                        _ => (Some((mutex, tid, None)), Poll::Pending),
                     }
                 }
-                Either::Right(mut enqueue) => {
-                    match (unsafe { Pin::new_unchecked(&mut enqueue) }).poll(cx) {
-                        Poll::Ready(mutex) => {
-                            state = Either::Left(mutex);
-                        }
-                        Poll::Pending => {
-                            break (Some(Either::Right(enqueue)), Poll::Pending);
-                        }
+                Some(mut enqueue) => match (unsafe { Pin::new_unchecked(&mut enqueue) }).poll(cx) {
+                    Poll::Ready(_) => {
+                        state = None;
                     }
-                }
+                    Poll::Pending => {
+                        break (Some((mutex, tid, None)), Poll::Pending);
+                    }
+                },
             }
         };
 
         this.state = state;
         res
-    }
-}
-
-struct EnqueueLock<'a, T, const N: usize> {
-    mutex: Option<&'a mut Mutex<T, N>>,
-    tid: usize,
-}
-
-impl<'a, T, const N: usize> EnqueueLock<'a, T, N> {
-    #[inline(always)]
-    pub fn new(mutex: &'a mut Mutex<T, N>, tid: usize) -> Self {
-        Self {
-            mutex: Some(mutex),
-            tid,
-        }
-    }
-}
-
-impl<'a, T, const N: usize> Future for EnqueueLock<'a, T, N> {
-    type Output = (&'a mut Mutex<T, N>, usize);
-
-    #[inline]
-    fn poll(
-        self: Pin<&mut Self>,
-        _cx: &mut core::task::Context<'_>,
-    ) -> core::task::Poll<Self::Output> {
-        let this = Pin::get_mut(self);
-        let mutex = this.mutex.take().unwrap();
-        if mutex.queue.enqueue(this.tid).is_ok() {
-            Poll::Ready((mutex, this.tid))
-        } else {
-            this.mutex.replace(mutex);
-            Poll::Pending
-        }
     }
 }
