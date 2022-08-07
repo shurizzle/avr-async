@@ -12,6 +12,7 @@ use crate::{queue::UniqueQueue, task};
 pub struct Mutex<T, const N: usize> {
     locking: Option<usize>,
     value: T,
+    // TODO: Use async unique queue instead
     queue: UniqueQueue<usize, N>,
 }
 
