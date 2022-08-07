@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 pin-utils = "0.1.0"
 avr-device = "0.3.4"
 num-traits = { version = "0.2.15", default-features = false }
+either = { version = "1.7.0", default-features = false }
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"

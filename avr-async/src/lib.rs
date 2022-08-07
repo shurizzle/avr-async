@@ -1,5 +1,11 @@
 #![no_std]
-#![feature(asm_experimental_arch, const_mut_refs, const_trait_impl, const_pin)]
+#![feature(
+    asm_experimental_arch,
+    const_mut_refs,
+    const_trait_impl,
+    const_pin,
+    const_slice_index
+)]
 #![cfg_attr(feature = "alloc", feature(allocator_api, default_alloc_error_handler))]
 
 #[cfg(feature = "alloc")]
@@ -48,7 +54,10 @@ unsafe impl GlobalAlloc for GlobalAllocator {
 static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
 pub mod executor;
+pub mod queue;
 pub mod runtime;
+mod sealed;
+pub mod sync;
 pub mod task;
 #[cfg(feature = "time")]
 pub mod time;

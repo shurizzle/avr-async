@@ -58,12 +58,12 @@ impl<F: Future<Output = ()>> Task<F> {
             true
         }
     }
+}
 
-    #[inline]
-    pub fn current() -> usize {
-        unsafe { ensure_runtime() };
-        unsafe { TASKNO }
-    }
+#[inline]
+pub fn current() -> usize {
+    unsafe { ensure_runtime() };
+    unsafe { TASKNO }
 }
 
 pub use avr_async_macros::task_compose_internal;
