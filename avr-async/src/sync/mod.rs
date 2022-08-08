@@ -1,3 +1,4 @@
+pub mod arc;
 mod mutex;
 pub mod queue;
 
