@@ -10,8 +10,6 @@ impl<T, const N: usize> Queue<T, N> {
 
     #[inline(always)]
     pub const fn new() -> Self {
-        crate::sealed::greater_than_0::<N>();
-
         Self {
             bounds: None,
             buffer: [Self::INIT; N],
@@ -54,6 +52,16 @@ impl<T, const N: usize> Queue<T, N> {
         unsafe { self.inner_dequeue() }
     }
 
+    #[inline(always)]
+    pub fn iter(&self) -> Iter<T, N> {
+        self.into_iter()
+    }
+
+    #[inline(always)]
+    pub fn iter_mut(&mut self) -> IterMut<T, N> {
+        self.into_iter()
+    }
+
     unsafe fn inner_enqueue(&mut self, val: T) -> Result<(), T> {
         match match self.bounds {
             Some((head, tail)) => {
@@ -87,7 +95,7 @@ impl<T, const N: usize> Queue<T, N> {
                 if len == 0 {
                     self.bounds = None;
                 } else {
-                    self.bounds = Some((head, Self::inc(head)));
+                    self.bounds = Some((Self::inc(head), tail));
                 }
                 Some(v)
             }
@@ -99,15 +107,12 @@ impl<T, const N: usize> Queue<T, N> {
     const fn inc(val: usize) -> usize {
         (val + 1) % N
     }
+}
 
+impl<T, const N: usize> Default for Queue<T, N> {
     #[inline(always)]
-    pub fn iter(&self) -> Iter<T, N> {
-        self.into_iter()
-    }
-
-    #[inline(always)]
-    pub fn iter_mut(&mut self) -> IterMut<T, N> {
-        self.into_iter()
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -197,13 +202,6 @@ impl<'a, T, const N: usize> IntoIterator for &'a mut Queue<T, N> {
     }
 }
 
-impl<T, const N: usize> Default for Queue<T, N> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub struct UniqueQueue<T: Eq, const N: usize> {
     inner: Queue<T, N>,
 }
@@ -251,9 +249,56 @@ impl<T: Eq, const N: usize> UniqueQueue<T, N> {
     }
 }
 
-impl<T: Eq, const N: usize> Default for UniqueQueue<T, N> {
+impl<T: Eq, const N: usize> const Default for UniqueQueue<T, N> {
     #[inline(always)]
     fn default() -> Self {
         Self::new()
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     #[test]
+//     fn test() {
+//         let mut q = super::Queue::<u32, 2>::new();
+//
+//         // half full
+//         assert_eq!(q.enqueue(1), Ok(()));
+//         assert_eq!(q.len(), 1);
+//         assert!(!q.is_empty());
+//         assert!(!q.is_full());
+//
+//         // dequeue existing value
+//         assert_eq!(q.dequeue(), Some(1));
+//         assert_eq!(q.len(), 0);
+//         assert!(q.is_empty());
+//         assert!(!q.is_full());
+//
+//         // enqueue
+//         assert_eq!(q.enqueue(1), Ok(()));
+//         assert_eq!(q.len(), 1);
+//         assert!(!q.is_empty());
+//         assert!(!q.is_full());
+//
+//         // enqueue
+//         assert_eq!(q.enqueue(2), Ok(()));
+//         assert_eq!(q.len(), 2);
+//         assert!(!q.is_empty());
+//         assert!(q.is_full());
+//
+//         // enqueue fail
+//         assert_eq!(q.enqueue(3), Err(3));
+//         assert_eq!(q.len(), 2);
+//         assert!(!q.is_empty());
+//         assert!(q.is_full());
+//
+//         // dequeue all value (2)
+//         assert_eq!(q.dequeue(), Some(1));
+//         assert_eq!(q.dequeue(), Some(2));
+//         assert!(q.is_empty());
+//         assert!(!q.is_full());
+//
+//         // dequeue on empty
+//         assert_eq!(q.dequeue(), None);
+//     }
+// }
