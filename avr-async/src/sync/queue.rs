@@ -6,7 +6,7 @@ pub struct Queue<T, const N: usize> {
 
 impl<T, const N: usize> Queue<T, N> {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             inner: crate::queue::Queue::new(),
         }
@@ -102,7 +102,7 @@ pub struct UniqueQueue<T: Eq, const N: usize> {
 
 impl<T: Eq, const N: usize> UniqueQueue<T, N> {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             inner: crate::queue::UniqueQueue::new(),
         }
