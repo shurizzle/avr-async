@@ -8,14 +8,20 @@ pub use self::imp::{SemaphorePermit, TryAcquireError};
 
 #[derive(Debug)]
 pub struct Semaphore<const N: usize> {
-    inner: UnsafeCell<imp::InnerSemaphore<N>>,
+    pub(crate) inner: UnsafeCell<imp::InnerSemaphore<N>>,
 }
 
 impl<const N: usize> Semaphore<N> {
+    const CHECK: bool = N > 0;
+
     #[inline(always)]
-    pub fn new(permits: usize) -> Self {
-        Self {
-            inner: UnsafeCell::new(imp::InnerSemaphore::new(permits)),
+    pub const fn new(permits: usize) -> Self {
+        if Self::CHECK {
+            Self {
+                inner: UnsafeCell::new(imp::InnerSemaphore::new(permits)),
+            }
+        } else {
+            unreachable!()
         }
     }
 
@@ -44,7 +50,7 @@ impl<const N: usize> Semaphore<N> {
     }
 
     #[allow(clippy::mut_from_ref)]
-    fn inner(&self) -> &mut imp::InnerSemaphore<N> {
+    pub(crate) fn inner(&self) -> &mut imp::InnerSemaphore<N> {
         unsafe { &mut *(self.inner.get()) }
     }
 }
@@ -61,7 +67,7 @@ impl<'a, const N: usize> Acquire<'a, N> {
         }
     }
 
-    fn poll(&mut self) -> Poll<SemaphorePermit<'a, N>> {
+    pub(crate) fn poll(&mut self) -> Poll<SemaphorePermit<'a, N>> {
         self.state = Some(loop {
             match unsafe { self.state.take().unwrap_unchecked() } {
                 Either::Left((q, n)) => {

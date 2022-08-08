@@ -121,7 +121,7 @@ impl<const N: usize> InnerSemaphore<N> {
         }
     }
 
-    fn release(&mut self, permits: usize) {
+    pub(crate) fn release(&mut self, permits: usize) {
         self.locking -= permits;
         self.progress_queue();
     }
