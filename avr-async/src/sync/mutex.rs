@@ -1,4 +1,5 @@
 use core::{
+    cell::UnsafeCell,
     future::Future,
     ops::{Deref, DerefMut},
     pin::Pin,
@@ -11,7 +12,7 @@ use super::{queue::UniqueEnqueue, UniqueQueue};
 
 pub struct Mutex<T, const N: usize> {
     lock: Option<usize>,
-    value: T,
+    value: UnsafeCell<T>,
     queue: UniqueQueue<usize, N>,
 }
 
@@ -20,7 +21,7 @@ impl<T, const N: usize> Mutex<T, N> {
     pub fn new(initial: T) -> Self {
         Self {
             lock: None,
-            value: initial,
+            value: UnsafeCell::new(initial),
             queue: UniqueQueue::new(),
         }
     }
@@ -46,27 +47,33 @@ impl<T, const N: usize> Mutex<T, N> {
     }
 }
 
+unsafe impl<T: Send, const N: usize> Send for Mutex<T, N> {}
+unsafe impl<T: Send, const N: usize> Sync for Mutex<T, N> {}
+
 pub struct MutexGuard<'a, T, const N: usize> {
     mutex: &'a mut Mutex<T, N>,
 }
 
-impl<'a, T, const N: usize> Deref for MutexGuard<'a, T, N> {
+impl<T, const N: usize> !Send for MutexGuard<'_, T, N> {}
+unsafe impl<T: Sync, const N: usize> Sync for MutexGuard<'_, T, N> {}
+
+impl<T, const N: usize> Deref for MutexGuard<'_, T, N> {
     type Target = T;
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        &self.mutex.value
+        unsafe { &*self.mutex.value.get() }
     }
 }
 
-impl<'a, T, const N: usize> DerefMut for MutexGuard<'a, T, N> {
+impl<T, const N: usize> DerefMut for MutexGuard<'_, T, N> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.mutex.value
+        unsafe { &mut *self.mutex.value.get() }
     }
 }
 
-impl<'a, T, const N: usize> Drop for MutexGuard<'a, T, N> {
+impl<T, const N: usize> Drop for MutexGuard<'_, T, N> {
     #[inline]
     fn drop(&mut self) {
         self.mutex.lock = self.mutex.queue.try_dequeue();
@@ -127,5 +134,19 @@ impl<'a, T, const N: usize> Future for WaitLock<'a, T, N> {
 
         this.state = state;
         res
+    }
+}
+
+impl<T: Default, const N: usize> Default for Mutex<T, N> {
+    #[inline]
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+impl<T: Default, const N: usize> From<T> for Mutex<T, N> {
+    #[inline]
+    fn from(t: T) -> Self {
+        Self::new(t)
     }
 }

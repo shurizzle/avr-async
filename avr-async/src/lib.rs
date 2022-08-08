@@ -4,7 +4,8 @@
     const_mut_refs,
     const_trait_impl,
     const_pin,
-    const_slice_index
+    const_slice_index,
+    negative_impls
 )]
 #![cfg_attr(feature = "alloc", feature(allocator_api, default_alloc_error_handler))]
 
