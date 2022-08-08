@@ -53,12 +53,6 @@ impl<T> Arc<T> {
         unsafe { &*self.value_ptr() }
     }
 
-    #[allow(clippy::mut_from_ref)]
-    #[inline]
-    const fn value_mut(&self) -> &mut T {
-        unsafe { &mut *self.value_ptr() }
-    }
-
     #[inline]
     pub const fn into_raw(this: Self) -> *const T {
         let ptr = Self::as_ptr(&this);
