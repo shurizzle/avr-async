@@ -202,60 +202,6 @@ impl<'a, T, const N: usize> IntoIterator for &'a mut Queue<T, N> {
     }
 }
 
-pub struct UniqueQueue<T: Eq, const N: usize> {
-    inner: Queue<T, N>,
-}
-
-impl<T: Eq, const N: usize> UniqueQueue<T, N> {
-    #[inline(always)]
-    pub const fn new() -> Self {
-        Self {
-            inner: Queue::new(),
-        }
-    }
-
-    #[inline(always)]
-    pub const fn capacity(&self) -> usize {
-        self.inner.capacity()
-    }
-
-    #[inline(always)]
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    #[inline(always)]
-    pub const fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
-    #[inline]
-    pub fn is_full(&self) -> bool {
-        self.inner.is_full()
-    }
-
-    #[inline]
-    pub fn enqueue(&mut self, val: T) -> Result<Option<T>, T> {
-        if self.inner.iter().any(|x| x.eq(&val)) {
-            Ok(Some(val))
-        } else {
-            self.inner.enqueue(val).map(|_| None)
-        }
-    }
-
-    #[inline]
-    pub fn dequeue(&mut self) -> Option<T> {
-        self.inner.dequeue()
-    }
-}
-
-impl<T: Eq, const N: usize> const Default for UniqueQueue<T, N> {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 // #[cfg(test)]
 // mod tests {
 //     #[test]
