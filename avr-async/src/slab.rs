@@ -4,23 +4,27 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-pub struct Slab<T> {
-    mem: *mut MaybeUninit<T>,
+pub trait Slabbed {
+    type InnerType;
+}
+
+pub struct Slab<T: Slabbed> {
+    mem: *mut MaybeUninit<T::InnerType>,
 }
 
 pub struct SlabBox<T> {
     mem: *mut T,
 }
 
-impl<T> Slab<T> {
+impl<T: Slabbed> Slab<T> {
     #[inline(always)]
     #[doc(hidden)]
-    pub const unsafe fn new(mem: *mut MaybeUninit<T>) -> Self {
+    pub const unsafe fn new(mem: *mut MaybeUninit<T::InnerType>) -> Self {
         Self { mem }
     }
 
     #[inline(always)]
-    pub fn get(self, value: T) -> SlabBox<T> {
+    pub fn get(self, value: T::InnerType) -> SlabBox<T::InnerType> {
         let mem = unsafe { &mut *self.mem };
         mem.write(value);
         unsafe { SlabBox::from_ptr(MaybeUninit::as_mut_ptr(mem)) }
@@ -103,41 +107,11 @@ impl<T> const AsMut<T> for SlabBox<T> {
     }
 }
 
+pub use avr_async_macros::slab as slab_internal;
+
 #[macro_export]
 macro_rules! slab {
-    ($t:ty) => {{
-        static mut SLAB: MaybeUninit<$t> = MaybeUninit::uninit();
-        unsafe { Slab::<$t>::new((&mut SLAB) as *mut MaybeUninit<$t>) }
-    }};
-}
-
-#[macro_export]
-macro_rules! slab1 {
-    () => {{
-        unsafe {
-            $crate::slab::Slab::new((|x| {
-                static mut SLAB: ::core::mem::MaybeUninit<[u8; ::core::mem::size_of_val_raw(x)]> =
-                    ::core::mem::MaybeUninit::uninit();
-                $crate::slab::__private_slab_cast_type(
-                    &mut SLAB
-                        as *mut ::core::mem::MaybeUninit<[u8; ::core::mem::size_of_val_raw(x)]>,
-                )
-            })($crate::slab::__private_slab_get_type()))
-        }
-    }};
-}
-
-/// # Safety
-#[allow(clippy::zero_ptr)]
-#[inline(always)]
-pub const unsafe fn __private_slab_get_type<T>() -> *mut T {
-    0 as *mut T
-}
-
-/// # Safety
-#[inline(always)]
-pub const unsafe fn __private_slab_cast_type<T, const N: usize>(
-    mem: *mut MaybeUninit<[u8; N]>,
-) -> *mut MaybeUninit<T> {
-    mem as *mut MaybeUninit<T>
+    ($($tt:tt)+) => {
+        $crate::slab::slab_internal!($crate, $($tt)+);
+    };
 }

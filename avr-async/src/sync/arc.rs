@@ -1,6 +1,6 @@
 use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
-use crate::slab::{Slab, SlabBox};
+use crate::slab::{Slab, SlabBox, Slabbed};
 
 pub struct ArcSlab<T> {
     count: usize,
@@ -9,10 +9,14 @@ pub struct ArcSlab<T> {
 
 pub struct Arc<T>(NonNull<ArcSlab<T>>);
 
+impl<T> Slabbed for Arc<T> {
+    type InnerType = ArcSlab<T>;
+}
+
 impl<T> Arc<T> {
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline(always)]
-    pub fn new(slab: Slab<ArcSlab<T>>, value: T) -> Self {
+    pub fn new(slab: Slab<Arc<T>>, value: T) -> Self {
         Self(unsafe {
             NonNull::new(SlabBox::leak(slab.get(ArcSlab { count: 1, value }))).unwrap_unchecked()
         })
