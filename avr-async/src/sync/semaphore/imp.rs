@@ -102,7 +102,7 @@ impl<const N: usize> InnerSemaphore<N> {
             unsafe {
                 match self.bounds {
                     Some((head, tail)) => {
-                        if (&*(self.buffer.get_unchecked(head).get() as *const Option<usize>))
+                        if (*(self.buffer.get_unchecked(head).get() as *const Option<usize>))
                             .is_none()
                         {
                             let new_len = tail.wrapping_sub(head).wrapping_add(N) % N;

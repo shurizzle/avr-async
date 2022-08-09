@@ -58,6 +58,7 @@ pub mod executor;
 pub mod queue;
 pub mod runtime;
 mod sealed;
+pub mod slab;
 pub mod sync;
 pub mod task;
 #[cfg(feature = "time")]

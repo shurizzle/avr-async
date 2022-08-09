@@ -1,56 +1,40 @@
-use core::{borrow::Borrow, mem::MaybeUninit, ops::Deref};
+use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
-pub type ArcSlab<T> = MaybeUninit<(usize, T)>;
+use crate::slab::{Slab, SlabBox};
 
-pub struct Arc<T: 'static>(*mut ArcSlab<T>);
+pub struct ArcSlab<T> {
+    count: usize,
+    value: T,
+}
+
+pub struct Arc<T>(NonNull<ArcSlab<T>>);
 
 impl<T> Arc<T> {
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     #[inline(always)]
-    pub fn new(slab: *mut ArcSlab<T>, value: T) -> Self {
-        unsafe { &mut *slab }.write((1, value));
-        Self(slab)
+    pub fn new(slab: Slab<ArcSlab<T>>, value: T) -> Self {
+        Self(unsafe {
+            NonNull::new(SlabBox::leak(slab.get(ArcSlab { count: 1, value }))).unwrap_unchecked()
+        })
     }
 
-    const fn slab_ptr(&self) -> *mut (usize, T) {
-        self.0 as *mut (usize, T)
+    const fn inner(&self) -> &ArcSlab<T> {
+        unsafe { &*(self.0.as_ptr()) }
     }
 
     #[allow(clippy::mut_from_ref)]
-    #[inline(always)]
-    const fn slab(&self) -> &mut (usize, T) {
-        unsafe { &mut *self.slab_ptr() }
+    const fn inner_mut(&self) -> &mut ArcSlab<T> {
+        unsafe { &mut *(self.0.as_ptr()) }
     }
 
     #[inline]
     const fn inc(&self) {
-        self.slab().0 += 1;
-    }
-
-    #[inline]
-    const fn counter_ptr(&self) -> *mut usize {
-        unsafe { core::ptr::addr_of_mut!((*self.slab_ptr()).0) }
-    }
-
-    #[inline]
-    const fn counter(&self) -> &usize {
-        unsafe { &*self.counter_ptr() }
-    }
-
-    #[allow(clippy::mut_from_ref)]
-    #[inline]
-    const fn counter_mut(&self) -> &mut usize {
-        unsafe { &mut *self.counter_ptr() }
-    }
-
-    #[inline]
-    const fn value_ptr(&self) -> *mut T {
-        unsafe { core::ptr::addr_of_mut!((*self.slab_ptr()).1) }
+        self.inner_mut().count += 1;
     }
 
     #[inline]
     const fn value(&self) -> &T {
-        unsafe { &*self.value_ptr() }
+        &self.inner().value
     }
 
     #[inline]
@@ -62,19 +46,19 @@ impl<T> Arc<T> {
 
     #[inline]
     pub const fn as_ptr(this: &Self) -> *const T {
-        this.value_ptr()
+        core::ptr::addr_of!(this.inner().value)
     }
 
     #[inline]
     pub const fn strong_count(this: &Self) -> usize {
-        *this.counter()
+        this.inner().count
     }
 
     fn dec(&self) {
-        *self.counter_mut() -= 1;
-        if *self.counter() == 0 {
+        self.inner_mut().count -= 1;
+        if self.inner().count == 0 {
             unsafe {
-                let v = &mut *core::ptr::addr_of_mut!((*self.slab_ptr()).1);
+                let v = &mut *core::ptr::addr_of_mut!(self.inner_mut().value);
                 core::ptr::drop_in_place(v);
             }
         }

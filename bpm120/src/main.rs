@@ -1,6 +1,12 @@
 #![no_std]
 #![no_main]
-#![feature(abi_avr_interrupt, asm_experimental_arch, const_pin, const_mut_refs)]
+#![feature(
+    abi_avr_interrupt,
+    asm_experimental_arch,
+    const_pin,
+    const_mut_refs,
+    layout_for_ptr
+)]
 
 use core::{future::Future, mem::MaybeUninit, pin::Pin, task::Poll};
 
@@ -143,6 +149,7 @@ static mut Q: [Option<u8>; 1] = [None; 1];
 #[arduino_hal::entry]
 #[inline(always)]
 fn main() -> ! {
+    let arc = avr_async::sync::arc::Arc::new(unsafe { avr_async::slab1!() }, 1);
     unsafe { ::core::arch::asm!("cli") };
 
     let dp = arduino_hal::Peripherals::take().unwrap();
