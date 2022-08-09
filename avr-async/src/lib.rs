@@ -91,6 +91,7 @@ impl Future for Yield {
             Poll::Ready(())
         } else {
             self.0 = true;
+            unsafe { crate::executor::wake() };
             Poll::Pending
         }
     }
