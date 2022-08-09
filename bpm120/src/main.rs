@@ -8,7 +8,10 @@ use arduino_hal::{
     hal::port::{PB0, PD5},
     port::mode::Output,
 };
-use avr_async::slab::{Slab, SlabBox, Slabbed};
+use avr_async::{
+    ayield,
+    slab::{Slab, SlabBox, Slabbed},
+};
 use heapless::Vec;
 use panic_halt as _;
 
@@ -100,14 +103,6 @@ impl<'a, 'b> Future for NextTick<'a, 'b> {
             .map(Poll::Ready)
             .unwrap_or(Poll::Pending)
     }
-}
-
-type State = Ticker<1>;
-
-static mut __RUNTIME: *mut avr_async::runtime::DefaultRuntime<State> = core::ptr::null_mut();
-
-pub fn runtime() -> &'static mut avr_async::runtime::DefaultRuntime<State> {
-    unsafe { &mut *__RUNTIME }
 }
 
 avr_async::slab!(GlobalSlab { pub ticker: Ticker<1> });
@@ -202,6 +197,30 @@ impl avr_async::runtime::Runtime for Runtime {
     }
 }
 
+async fn switch_leds(
+    mut ticker: TickerListener<'_>,
+    mut led1: arduino_hal::port::Pin<Output, PD5>,
+    mut led2: arduino_hal::port::Pin<Output, PB0>,
+) {
+    let mut status = false;
+    ayield().await;
+
+    loop {
+        if ticker.next().await == 0 {
+            led1.set_low();
+            led2.set_low();
+        } else if status {
+            led1.set_low();
+            led2.set_high();
+            status = false;
+        } else {
+            led1.set_high();
+            led2.set_low();
+            status = true;
+        }
+    }
+}
+
 #[arduino_hal::entry]
 #[inline(always)]
 fn main() -> ! {
@@ -212,30 +231,11 @@ fn main() -> ! {
         GlobalSlab::take().unwrap(),
     );
 
-    let ticker = runtime.subscribe_ticker().unwrap();
-    let mut led1 = unsafe { runtime.led1.take().unwrap_unchecked() };
-    let mut led2 = unsafe { runtime.led2.take().unwrap_unchecked() };
+    let task1 = switch_leds(
+        runtime.subscribe_ticker().unwrap(),
+        unsafe { runtime.led1.take().unwrap_unchecked() },
+        unsafe { runtime.led2.take().unwrap_unchecked() },
+    );
 
-    avr_async::executor::run(
-        &mut runtime,
-        avr_async::task_compose!(async move {
-            let mut ticker = ticker;
-            let mut status = false;
-
-            loop {
-                if ticker.next().await == 0 {
-                    led1.set_low();
-                    led2.set_low();
-                } else if status {
-                    led1.set_low();
-                    led2.set_high();
-                    status = false;
-                } else {
-                    led1.set_high();
-                    led2.set_low();
-                    status = true;
-                }
-            }
-        }),
-    )
+    avr_async::executor::run(&mut runtime, avr_async::task_compose!(task1))
 }
