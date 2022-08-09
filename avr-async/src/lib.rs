@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(
     asm_experimental_arch,
+    abi_avr_interrupt,
     const_mut_refs,
     const_trait_impl,
     const_pin,

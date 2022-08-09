@@ -4,11 +4,15 @@
 
 use core::{future::Future, task::Poll};
 
+use arduino_hal::{
+    hal::port::{PB0, PD5},
+    port::mode::Output,
+};
 use avr_async::slab::{Slab, SlabBox, Slabbed};
 use heapless::Vec;
 use panic_halt as _;
 
-use avr_device::interrupt;
+use avr_device::interrupt::{self, CriticalSection};
 
 mod util;
 
@@ -108,47 +112,112 @@ pub fn runtime() -> &'static mut avr_async::runtime::DefaultRuntime<State> {
 
 avr_async::slab!(GlobalSlab { pub ticker: Ticker<1> });
 
+pub struct Runtime {
+    tc1: arduino_hal::pac::TC1,
+    pub led1: Option<arduino_hal::port::Pin<Output, PD5>>,
+    pub led2: Option<arduino_hal::port::Pin<Output, PB0>>,
+    cpu: arduino_hal::pac::CPU,
+    ticker: Ticker<1>,
+    ready: bool,
+}
+
+impl Runtime {
+    pub fn new(peripherals: arduino_hal::Peripherals, slab: GlobalSlab) -> Self {
+        util::reset_irqs(&peripherals);
+
+        let (mut led1, mut led2) = {
+            let pins = arduino_hal::pins!(peripherals);
+
+            (pins.led_tx.into_output(), pins.led_rx.into_output())
+        };
+
+        led1.set_low();
+        led2.set_low();
+
+        Self {
+            tc1: peripherals.TC1,
+            led1: Some(led1),
+            led2: Some(led2),
+            cpu: peripherals.CPU,
+            ticker: Ticker::new(slab.ticker),
+            ready: false,
+        }
+    }
+
+    #[inline]
+    pub fn subscribe_ticker<'a>(&mut self) -> Option<TickerListener<'a>> {
+        self.ticker.subscribe()
+    }
+}
+
+impl avr_async::runtime::Runtime for Runtime {
+    #[inline]
+    fn init(&mut self, _: &CriticalSection) {
+        unsafe { ::core::arch::asm!("sei") };
+
+        // Set TIMER1_COMPA to 1/4s
+        {
+            self.tc1.tccr1a.write(|w| w.wgm1().bits(0));
+            self.tc1.tccr1b.write(|w| w.cs1().bits(5).wgm1().bits(0b01));
+            self.tc1.tcnt1.write(|w| unsafe { w.bits(0) });
+            self.tc1.ocr1a.write(|w| unsafe { w.bits(3907) });
+            self.tc1.tifr1.write(|w| w.tov1().bit(true));
+            self.tc1.timsk1.write(|w| w.ocie1a().set_bit());
+        }
+    }
+
+    #[inline]
+    fn is_ready(&self) -> bool {
+        unsafe { core::ptr::read_volatile(&self.ready) }
+    }
+
+    #[inline]
+    fn snapshot(&mut self, cs: &CriticalSection) {
+        use avr_async::runtime::State;
+        self.ticker.snapshot(cs)
+    }
+
+    #[inline]
+    fn idle(&self) {
+        self.cpu.smcr.write(|w| w.sm().idle().se().set_bit());
+        unsafe { ::core::arch::asm!("sleep") };
+    }
+
+    #[inline]
+    fn wake(&mut self) {
+        unsafe { core::ptr::write_volatile(&mut self.ready, true) }
+    }
+
+    #[inline]
+    fn shutdown(&self) {
+        self.cpu.smcr.write(|w| w.sm().pdown().se().set_bit());
+        unsafe { ::core::arch::asm!("sleep") };
+    }
+
+    #[inline]
+    unsafe fn timer0_compa(&mut self, _cs: &CriticalSection) {
+        if self.ticker.tick() {
+            self.wake()
+        }
+    }
+}
+
 #[arduino_hal::entry]
 #[inline(always)]
 fn main() -> ! {
     unsafe { ::core::arch::asm!("cli") };
 
-    let dp = arduino_hal::Peripherals::take().unwrap();
+    let mut runtime = Runtime::new(
+        arduino_hal::Peripherals::take().unwrap(),
+        GlobalSlab::take().unwrap(),
+    );
 
-    util::reset_irqs(&dp);
-
-    unsafe { ::core::arch::asm!("sei") };
-
-    let pins = arduino_hal::pins!(dp);
-
-    let mut led1 = pins.led_tx.into_output();
-    let mut led2 = pins.led_rx.into_output();
-
-    led1.set_low();
-    led2.set_low();
-
-    let state = Ticker::new(GlobalSlab::take().unwrap().ticker);
-    let mut rtm = avr_async::runtime::DefaultRuntime::new(state, dp.CPU);
-    unsafe { __RUNTIME = &mut rtm as *mut _ };
-
-    // Set TIMER1_COMPA to 1/4s
-    {
-        let tc1 = dp.TC1;
-        tc1.tccr1a.write(|w| w.wgm1().bits(0));
-        tc1.tccr1b.write(|w| w.cs1().bits(5).wgm1().bits(0b01));
-        tc1.tcnt1.write(|w| unsafe { w.bits(0) });
-        tc1.ocr1a.write(|w| unsafe { w.bits(3907) });
-        tc1.tifr1.write(|w| w.tov1().bit(true));
-        tc1.timsk1.write(|w| w.ocie1a().set_bit());
-    }
-
-    let ticker = {
-        use avr_async::runtime::Runtime;
-        unsafe { runtime().state_mut() }.subscribe().unwrap()
-    };
+    let ticker = runtime.subscribe_ticker().unwrap();
+    let mut led1 = unsafe { runtime.led1.take().unwrap_unchecked() };
+    let mut led2 = unsafe { runtime.led2.take().unwrap_unchecked() };
 
     avr_async::executor::run(
-        &mut rtm,
+        &mut runtime,
         avr_async::task_compose!(async move {
             let mut ticker = ticker;
             let mut status = false;
@@ -169,11 +238,4 @@ fn main() -> ! {
             }
         }),
     )
-}
-
-#[doc(hidden)]
-#[export_name = "__vector_17"]
-pub unsafe extern "avr-interrupt" fn timer() {
-    use avr_async::runtime::Runtime;
-    runtime().modify(|state| state.tick());
 }
