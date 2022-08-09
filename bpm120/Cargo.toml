@@ -13,6 +13,7 @@ bench = false
 [dependencies]
 panic-halt = "0.2.0"
 avr-device = "0.3.4"
+heapless = { version = "0.7.16", default-features = false }
 
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
