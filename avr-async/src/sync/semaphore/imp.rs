@@ -97,7 +97,7 @@ impl<const N: usize> InnerSemaphore<N> {
         (val + 1) % N
     }
 
-    fn signal_descriptor(&mut self) {
+    fn dequeued_descriptor(&mut self) {
         loop {
             unsafe {
                 match self.bounds {
@@ -119,6 +119,7 @@ impl<const N: usize> InnerSemaphore<N> {
                 }
             }
         }
+        unsafe { crate::executor::wake() };
     }
 
     pub(crate) fn release(&mut self, permits: usize) {
@@ -132,6 +133,7 @@ impl<const N: usize> InnerSemaphore<N> {
             x => x,
         };
         let head = unsafe { self.bounds.unwrap_unchecked() }.0;
+        let mut signal = false;
 
         for i in 0..len {
             let idx = head.wrapping_add(i) % N;
@@ -147,8 +149,13 @@ impl<const N: usize> InnerSemaphore<N> {
                 } else {
                     self.locking += *task;
                     *task = 0;
+                    signal = true;
                 }
             }
+        }
+
+        if signal {
+            unsafe { crate::executor::wake() };
         }
     }
 }
@@ -179,7 +186,7 @@ impl<'a, const N: usize> EnqueuedLock<'a, N> {
     pub fn try_lock(self) -> Either<SemaphorePermit<'a, N>, Self> {
         if unsafe { self.descriptor.unwrap_unchecked() } == 0 {
             *self.descriptor = None;
-            self.q.signal_descriptor();
+            self.q.dequeued_descriptor();
             Either::Left(unsafe {
                 SemaphorePermit::new(&mut *(self.q as *mut InnerSemaphore<N>), self.permits)
             })
@@ -194,7 +201,7 @@ impl<'a, const N: usize> Drop for EnqueuedLock<'a, N> {
         if let Some(d) = self.descriptor {
             let permits = self.permits - *d;
             *self.descriptor = None;
-            self.q.signal_descriptor();
+            self.q.dequeued_descriptor();
             self.q.release(permits);
         }
     }

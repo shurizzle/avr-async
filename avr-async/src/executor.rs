@@ -40,12 +40,12 @@ pub(crate) struct Vtable {
 
 pub(crate) fn vtable<R: Runtime>() -> &'static Vtable {
     &Vtable {
-        wake: wake::<R>,
+        wake: _wake::<R>,
         timer0_compa: timer0_compa::<R>,
     }
 }
 
-unsafe fn wake<R: Runtime>(ptr: *mut ()) {
+unsafe fn _wake<R: Runtime>(ptr: *mut ()) {
     (*(ptr as *mut R)).wake()
 }
 
@@ -122,5 +122,12 @@ pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 
                 runtime.idle();
             }
         }
+    }
+}
+
+#[doc(hidden)]
+pub unsafe fn wake() {
+    if let Some(runtime) = (*RUNTIME.get()).as_ref() {
+        runtime.wake();
     }
 }

@@ -6,7 +6,7 @@ use core::{
     task::Poll,
 };
 
-use super::{Acquire, Semaphore};
+use super::semaphore::{Acquire, Semaphore};
 
 pub struct TryLockError;
 
@@ -86,10 +86,10 @@ impl<'a, T, const N: usize> Lock<'a, T, N> {
         }
     }
 
-    fn poll(&mut self) -> Poll<MutexGuard<'a, T, N>> {
+    fn poll(&mut self, cx: &mut core::task::Context<'_>) -> Poll<MutexGuard<'a, T, N>> {
         let (mutex, mut acquire) = unsafe { self.state.take().unwrap_unchecked() };
 
-        match acquire.poll() {
+        match acquire.poll(cx) {
             Poll::Pending => {
                 self.state = Some((mutex, acquire));
                 Poll::Pending
@@ -106,8 +106,8 @@ impl<'a, T, const N: usize> Future for Lock<'a, T, N> {
     type Output = MutexGuard<'a, T, N>;
 
     #[inline(always)]
-    fn poll(self: Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
-        unsafe { Pin::get_unchecked_mut(self) }.poll()
+    fn poll(self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        unsafe { Pin::get_unchecked_mut(self) }.poll(cx)
     }
 }
 

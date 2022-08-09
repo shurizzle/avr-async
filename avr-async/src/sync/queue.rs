@@ -14,12 +14,24 @@ impl<T, const N: usize> Queue<T, N> {
 
     #[inline(always)]
     pub fn try_enqueue(&mut self, val: T) -> Result<(), T> {
-        self.inner.enqueue(val)
+        let signal = self.inner.is_empty();
+        self.inner.enqueue(val).map(|x| {
+            if signal {
+                unsafe { crate::executor::wake() };
+            }
+            x
+        })
     }
 
     #[inline(always)]
     pub fn try_dequeue(&mut self) -> Option<T> {
-        self.inner.dequeue()
+        let signal = self.inner.is_full();
+        self.inner.dequeue().map(|x| {
+            if signal {
+                unsafe { crate::executor::wake() };
+            }
+            x
+        })
     }
 
     #[inline(always)]
@@ -50,9 +62,15 @@ impl<'a, T, const N: usize> Future for Enqueue<'a, T, N> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
         let this = unsafe { Pin::get_unchecked_mut(self) };
+        let signal = this.q.inner.is_empty();
 
         match this.q.try_enqueue(this.v.take().unwrap()) {
-            Ok(()) => Poll::Ready(()),
+            Ok(()) => {
+                if signal {
+                    unsafe { crate::executor::wake() };
+                }
+                Poll::Ready(())
+            }
             Err(v) => {
                 this.v.replace(v);
                 Poll::Pending
@@ -78,9 +96,15 @@ impl<'a, T, const N: usize> Future for Dequeue<'a, T, N> {
     fn poll(self: Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
         let this = unsafe { Pin::get_unchecked_mut(self) };
         let q = this.q.take().unwrap();
+        let signal = q.inner.is_full();
 
         match q.try_dequeue() {
-            Some(val) => Poll::Ready(val),
+            Some(val) => {
+                if signal {
+                    unsafe { crate::executor::wake() };
+                }
+                Poll::Ready(val)
+            }
             None => {
                 this.q.replace(q);
                 Poll::Pending

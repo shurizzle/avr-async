@@ -1,8 +1,9 @@
 pub mod arc;
-mod mutex;
+pub mod mutex;
 pub mod queue;
-mod semaphore;
+pub mod semaphore;
 
-pub use mutex::*;
-pub use queue::{Queue, UniqueQueue};
-pub use semaphore::*;
+pub use arc::Arc;
+pub use mutex::Mutex;
+pub use queue::Queue;
+pub use semaphore::Semaphore;

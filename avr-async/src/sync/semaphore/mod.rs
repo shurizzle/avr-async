@@ -12,16 +12,10 @@ pub struct Semaphore<const N: usize> {
 }
 
 impl<const N: usize> Semaphore<N> {
-    const CHECK: bool = N > 0;
-
     #[inline(always)]
     pub const fn new(permits: usize) -> Self {
-        if Self::CHECK {
-            Self {
-                inner: UnsafeCell::new(imp::InnerSemaphore::new(permits)),
-            }
-        } else {
-            unreachable!()
+        Self {
+            inner: UnsafeCell::new(imp::InnerSemaphore::new(permits)),
         }
     }
 
@@ -67,7 +61,10 @@ impl<'a, const N: usize> Acquire<'a, N> {
         }
     }
 
-    pub(crate) fn poll(&mut self) -> Poll<SemaphorePermit<'a, N>> {
+    pub(crate) fn poll(
+        &mut self,
+        _cx: &mut core::task::Context<'_>,
+    ) -> Poll<SemaphorePermit<'a, N>> {
         self.state = Some(loop {
             match unsafe { self.state.take().unwrap_unchecked() } {
                 Either::Left((q, n)) => {
@@ -94,8 +91,8 @@ impl<'a, const N: usize> Future for Acquire<'a, N> {
     type Output = SemaphorePermit<'a, N>;
 
     #[inline(always)]
-    fn poll(self: Pin<&mut Self>, _cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
-        unsafe { Pin::get_unchecked_mut(self) }.poll()
+    fn poll(self: Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> Poll<Self::Output> {
+        unsafe { Pin::get_unchecked_mut(self) }.poll(cx)
     }
 }
 
