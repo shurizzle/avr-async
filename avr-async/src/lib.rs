@@ -60,9 +60,12 @@ pub mod runtime;
 mod sealed;
 pub mod slab;
 pub mod sync;
+mod sync_unsafe_cell;
 pub mod task;
 #[cfg(feature = "time")]
 pub mod time;
+
+pub use sync_unsafe_cell::SyncUnsafeCell;
 
 use core::{future::Future, task::Poll};
 

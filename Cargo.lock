@@ -144,6 +144,7 @@ dependencies = [
  "arduino-hal",
  "avr-async",
  "avr-device",
+ "heapless",
  "panic-halt",
 ]
 
@@ -216,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "heapless"
-version = "0.7.15"
+version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f6733da246dc2af610133c8be0667170fd68e8ca5630936b520300eee8846f9"
+checksum = "db04bc24a18b9ea980628ecf00e6c0264f3c1426dac36c00cb49b6fbad8b0743"
 dependencies = [
  "atomic-polyfill",
  "hash32",
@@ -432,9 +433,9 @@ dependencies = [
 
 [[package]]
 name = "ufmt"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e7ecea7ef79d3f8f878eee614afdf5256475c63ad76139d4da6125617c784a0"
+checksum = "a06b52713d05516d73fce72ce746cf810fd186e4d2ce9f0dd1108262799b52d2"
 dependencies = [
  "proc-macro-hack",
  "ufmt-macros",
@@ -443,9 +444,9 @@ dependencies = [
 
 [[package]]
 name = "ufmt-macros"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed813e34a2bfa9dc58ee2ed8c8314d25e6d70c911486d64b8085cb695cfac069"
+checksum = "de07ac24d8d2d44782f52ab9b0e8195e0b75861a29f8007278272e1b26a8c62b"
 dependencies = [
  "proc-macro-hack",
  "proc-macro2",

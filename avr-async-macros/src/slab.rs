@@ -48,9 +48,14 @@ pub fn slab(input: TokenStream) -> TokenStream {
         def,
     } = syn::parse_macro_input!(input as Parameters);
 
+    let inst_ident = def.ident.clone();
     let mem_ident = format_ident!("__avr_async_{}_MEM", def.ident, span = span);
 
     let mut mem_fields = FieldsNamed {
+        brace_token: def.fields.brace_token,
+        named: Punctuated::<Field, Token![,]>::new(),
+    };
+    let mut inst_fields = FieldsNamed {
         brace_token: def.fields.brace_token,
         named: Punctuated::<Field, Token![,]>::new(),
     };
@@ -74,6 +79,7 @@ pub fn slab(input: TokenStream) -> TokenStream {
     };
 
     let mut mem_init = quote!();
+    let mut inst_init = quote!();
 
     for (i, f) in def.fields.named.iter().enumerate() {
         if i != 0 {
@@ -92,11 +98,28 @@ pub fn slab(input: TokenStream) -> TokenStream {
             ty,
         });
 
+        let ty = f.ty.clone();
+        let ty: Type = parse_quote!(#krate::slab::Slab<#ty>);
+
+        inst_fields.named.push_value(Field {
+            attrs: f.attrs.clone(),
+            vis: f.vis.clone(),
+            ident: f.ident.clone(),
+            colon_token: f.colon_token,
+            ty,
+        });
+
         let field = f.ident.clone().unwrap();
+        let ty = f.ty.clone();
 
         mem_init = quote! {
             #mem_init
             #field: ::core::mem::MaybeUninit::uninit(),
+        };
+
+        inst_init = quote! {
+            #inst_init
+            #field: #krate::slab::Slab::<#ty>::new(&mut mem.#field),
         };
     }
 
@@ -113,12 +136,41 @@ pub fn slab(input: TokenStream) -> TokenStream {
         }
     };
 
+    let inst_init = quote! {
+        impl #inst_ident {
+            pub fn take() -> Option<Self> {
+                unsafe {
+                    static MEM: #krate::SyncUnsafeCell<#mem_ident> = #krate::SyncUnsafeCell::new(#mem_ident::new());
+                    static TAKEN: #krate::SyncUnsafeCell<bool> = #krate::SyncUnsafeCell::new(false);
+                    if *TAKEN.get() {
+                        None
+                    } else {
+                        *TAKEN.get() = true;
+                        Some(Self::new(MEM.get()))
+                    }
+                }
+            }
+
+            fn new(mem: *mut #mem_ident) -> Self {
+                unsafe {
+                    let mem = &mut *mem;
+                    Self {
+                        #inst_init
+                    }
+                }
+            }
+        }
+    };
+
     quote! {
         #doc_hidden
+        #[allow(non_camel_case_types)]
         struct #mem_ident #mem_fields
+        unsafe impl Sync for #mem_ident {}
         #mem_init
         #doc_hidden
-        static #mem_ident: #mem_ident = #mem_ident::new();
+        pub struct #inst_ident #inst_fields
+        #inst_init
     }
     .into()
 }
