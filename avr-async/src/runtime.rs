@@ -17,6 +17,9 @@ pub trait Runtime<S: State> {
 
     fn state(&self) -> &S;
 
+    #[doc(hidden)]
+    unsafe fn state_mut(&mut self) -> &mut S;
+
     fn idle(&self);
 
     fn shutdown(&self);
@@ -60,6 +63,11 @@ impl<S: State> Runtime<S> for DefaultRuntime<S> {
     #[inline(always)]
     fn state(&self) -> &S {
         &self.state
+    }
+
+    #[inline(always)]
+    unsafe fn state_mut(&mut self) -> &mut S {
+        &mut self.state
     }
 
     #[inline]
