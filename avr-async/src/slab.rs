@@ -107,11 +107,13 @@ impl<T> const AsMut<T> for SlabBox<T> {
     }
 }
 
-pub use avr_async_macros::slab as slab_internal;
+pub mod __private {
+    pub use avr_async_macros::slab;
+}
 
 #[macro_export]
 macro_rules! slab {
     ($($tt:tt)+) => {
-        $crate::slab::slab_internal!($crate, $($tt)+);
+        $crate::slab::__private::slab!($crate, $($tt)+);
     };
 }

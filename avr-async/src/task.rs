@@ -66,19 +66,15 @@ pub fn current() -> usize {
     unsafe { TASKNO }
 }
 
-pub use avr_async_macros::task_compose_internal;
-
 pub mod __private {
-    pub use super::{Task, TaskContext};
-    pub use core::{future::poll_fn, task::Poll};
+    pub use avr_async_macros::task_compose;
 }
 
 #[macro_export]
 macro_rules! task_compose {
-    ($($tt:tt)+) => {{
-        use $crate::task::__private as __avr_async_crate;
-        $crate::task::task_compose_internal!($($tt)+)
-    }};
+    ($($tt:tt)+) => {
+        $crate::task::__private::task_compose!($crate, $($tt)+)
+    };
 }
 
 pub struct TaskContext<F: Future<Output = ()>> {

@@ -3,6 +3,8 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{parse::Parse, punctuated::Punctuated, token::Comma, Expr};
 
+use crate::common::Parameters;
+
 #[derive(Default)]
 struct TaskList {
     pub list: Punctuated<Expr, Comma>,
@@ -24,14 +26,19 @@ impl Parse for TaskList {
     }
 }
 
-pub fn task_compose_internal(input: TokenStream) -> TokenStream {
+pub fn imp(input: TokenStream) -> TokenStream {
     let span = Span::call_site();
 
     let mut defs;
     let mut poll_futures;
 
-    {
-        let parsed = syn::parse_macro_input!(input as TaskList);
+    let krate = {
+        let Parameters {
+            def: parsed,
+            comma: _,
+            krate,
+        } = syn::parse_macro_input!(input as Parameters<TaskList>);
+
         defs = Vec::with_capacity(parsed.list.len());
         poll_futures = Vec::with_capacity(parsed.list.len());
         for (mut i, expr) in parsed.list.into_iter().enumerate() {
@@ -43,22 +50,23 @@ pub fn task_compose_internal(input: TokenStream) -> TokenStream {
             let name = format_ident!("_fut{}", i, span = span);
 
             defs.push(quote! {
-                let mut #name = __avr_async_crate::Task::new(#i, #expr);
+                let mut #name = #krate::task::Task::new(#i, #expr);
             });
 
             poll_futures.push(quote! {
                 #name.poll(cx)
             });
         }
-    }
+        krate
+    };
 
-    TokenStream::from(quote! { __avr_async_crate::TaskContext::acquire({
+    TokenStream::from(quote! { #krate::task::TaskContext::acquire({
         #( #defs )*
-        __avr_async_crate::poll_fn(move |cx| {
+        ::core::future::poll_fn(move |cx| {
             if #( #poll_futures )* {
-                __avr_async_crate::Poll::Ready(())
+                ::core::task::Poll::Ready(())
             } else {
-                __avr_async_crate::Poll::Pending
+                ::core::task::Poll::Pending
             }
         })
     }) })

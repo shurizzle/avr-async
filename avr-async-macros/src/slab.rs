@@ -7,6 +7,8 @@ use syn::{
     FieldsNamed, Ident, Path, PathArguments, PathSegment, Token, Type, Visibility,
 };
 
+use crate::common::Parameters;
+
 pub struct SlabDef {
     pub ident: Ident,
     pub fields: FieldsNamed,
@@ -23,30 +25,14 @@ impl Parse for SlabDef {
     }
 }
 
-pub struct Parameters {
-    pub krate: Path,
-    pub comma: Token![,],
-    pub def: SlabDef,
-}
-
-impl Parse for Parameters {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            krate: input.parse()?,
-            comma: input.parse()?,
-            def: input.parse()?,
-        })
-    }
-}
-
-pub fn slab(input: TokenStream) -> TokenStream {
+pub fn imp(input: TokenStream) -> TokenStream {
     let span = Span::call_site();
 
     let Parameters {
         krate,
         comma: _,
         def,
-    } = syn::parse_macro_input!(input as Parameters);
+    } = syn::parse_macro_input!(input as Parameters<SlabDef>);
 
     let inst_ident = def.ident.clone();
     let mem_ident = format_ident!("__avr_async_{}_MEM", def.ident, span = span);

@@ -1,14 +1,15 @@
 use proc_macro::TokenStream;
 
+pub(crate) mod common;
 mod slab;
 mod task;
 
 #[proc_macro]
-pub fn task_compose_internal(input: TokenStream) -> TokenStream {
-    task::task_compose_internal(input)
+pub fn task_compose(input: TokenStream) -> TokenStream {
+    task::imp(input)
 }
 
 #[proc_macro]
 pub fn slab(input: TokenStream) -> TokenStream {
-    slab::slab(input)
+    slab::imp(input)
 }
