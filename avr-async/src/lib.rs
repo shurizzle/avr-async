@@ -99,3 +99,8 @@ impl Future for Yield {
 pub fn ayield() -> Yield {
     Yield::new()
 }
+
+#[inline]
+pub fn r#yield() -> Yield {
+    Yield::new()
+}
