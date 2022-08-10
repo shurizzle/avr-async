@@ -4,10 +4,10 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
     parse::Parse, parse_quote, punctuated::Punctuated, token::Bracket, AttrStyle, Attribute, Field,
-    FieldsNamed, Ident, Path, PathArguments, PathSegment, Token, Type, Visibility,
+    Fields, FieldsNamed, FieldsUnnamed, Ident, Item, Path, PathArguments, PathSegment, Token, Type,
 };
 
-use crate::common::Parameters;
+use crate::common::unraw;
 
 pub struct SlabDef {
     pub ident: Ident,
@@ -25,26 +25,31 @@ impl Parse for SlabDef {
     }
 }
 
-pub fn imp(input: TokenStream) -> TokenStream {
+// TODO: parse attributes
+pub fn imp(_attrs: TokenStream, input: TokenStream) -> TokenStream {
+    imp2("::avr_async", input)
+}
+
+fn imp2(krate: &str, input: TokenStream) -> TokenStream {
     let span = Span::call_site();
 
-    let Parameters {
-        krate,
-        comma: _,
-        def,
-    } = syn::parse_macro_input!(input as Parameters<SlabDef>);
+    let item: Item = syn::parse(input).expect("Cannot parse input");
 
-    let inst_ident = def.ident.clone();
-    let mem_ident = format_ident!("__avr_async_{}_MEM", def.ident, span = span);
+    let mut item = match item {
+        Item::Struct(s) => s,
+        _ => panic!("A slab can only be a struct"),
+    };
 
-    let mut mem_fields = FieldsNamed {
-        brace_token: def.fields.brace_token,
-        named: Punctuated::<Field, Token![,]>::new(),
-    };
-    let mut inst_fields = FieldsNamed {
-        brace_token: def.fields.brace_token,
-        named: Punctuated::<Field, Token![,]>::new(),
-    };
+    let has_generics = !(item.generics.params.is_empty()
+        && item.generics.lt_token.is_none()
+        && item.generics.gt_token.is_none()
+        && item.generics.where_clause.is_none());
+
+    if has_generics {
+        panic!("Slab doesn't support generics or lifetimes");
+    }
+
+    let krate: Path = syn::parse_str(krate).expect("Invalid crate path");
 
     let doc_hidden = Attribute {
         pound_token: Token![#](span),
@@ -64,59 +69,116 @@ pub fn imp(input: TokenStream) -> TokenStream {
         tokens: quote!((hidden)),
     };
 
+    let inst_ident = item.ident.clone();
+    let mem_ident = format_ident!("__avr_async_{}_MEM", unraw(&item.ident), span = span);
+
+    let mem_fields;
     let mut mem_init = quote!();
     let mut inst_init = quote!();
 
-    for (i, f) in def.fields.named.iter().enumerate() {
-        if i != 0 {
-            mem_fields.named.push_punct(Token![,](span));
+    item.fields = match item.fields {
+        Fields::Named(mut fields) => {
+            let mut mfs = FieldsNamed {
+                brace_token: fields.brace_token,
+                named: Punctuated::<Field, Token![,]>::new(),
+            };
+
+            for (i, f) in fields.named.iter_mut().enumerate() {
+                if i != 0 {
+                    mfs.named.push_punct(Token![,](span));
+                }
+
+                let ty = f.ty.clone();
+                let ty: Type = parse_quote!(::core::mem::MaybeUninit<<#ty as #krate::slab::Slabbed>::InnerType>);
+
+                mfs.named.push_value(Field {
+                    attrs: vec![doc_hidden.clone()],
+                    vis: f.vis.clone(),
+                    ident: f.ident.clone(),
+                    colon_token: f.colon_token,
+                    ty,
+                });
+
+                let ty = f.ty.clone();
+                let ty: Type = parse_quote!(#krate::slab::Slab<#ty>);
+                let ty2 = f.ty.clone();
+
+                f.ty = ty;
+
+                let field = f.ident.clone().unwrap();
+
+                mem_init = quote! {
+                    #mem_init
+                    #field: ::core::mem::MaybeUninit::uninit(),
+                };
+
+                inst_init = quote! {
+                    #inst_init
+                    #field: #krate::slab::Slab::<#ty2>::new(&mut mem.#field),
+                };
+            }
+
+            let mfs = Fields::Named(mfs);
+            mem_fields = quote!(#mfs);
+            mem_init = quote!({#mem_init});
+            inst_init = quote!({#inst_init});
+            Fields::Named(fields)
         }
+        Fields::Unnamed(mut fields) => {
+            let mut mfs = FieldsUnnamed {
+                paren_token: fields.paren_token,
+                unnamed: Punctuated::<Field, Token![,]>::new(),
+            };
 
-        let ty = f.ty.clone();
-        let ty: Type =
-            parse_quote!(::core::mem::MaybeUninit<<#ty as #krate::slab::Slabbed>::InnerType>);
+            for (i, f) in fields.unnamed.iter_mut().enumerate() {
+                if i != 0 {
+                    mfs.unnamed.push_punct(Token![,](span));
+                }
 
-        mem_fields.named.push_value(Field {
-            attrs: vec![doc_hidden.clone()],
-            vis: Visibility::Inherited,
-            ident: f.ident.clone(),
-            colon_token: f.colon_token,
-            ty,
-        });
+                let ty = f.ty.clone();
+                let ty: Type = parse_quote!(::core::mem::MaybeUninit<<#ty as #krate::slab::Slabbed>::InnerType>);
 
-        let ty = f.ty.clone();
-        let ty: Type = parse_quote!(#krate::slab::Slab<#ty>);
+                mfs.unnamed.push_value(Field {
+                    attrs: vec![doc_hidden.clone()],
+                    vis: f.vis.clone(),
+                    ident: None,
+                    colon_token: None,
+                    ty,
+                });
 
-        inst_fields.named.push_value(Field {
-            attrs: f.attrs.clone(),
-            vis: f.vis.clone(),
-            ident: f.ident.clone(),
-            colon_token: f.colon_token,
-            ty,
-        });
+                let ty = f.ty.clone();
+                let ty: Type = parse_quote!(#krate::slab::Slab<#ty>);
+                let ty2 = f.ty.clone();
 
-        let field = f.ident.clone().unwrap();
-        let ty = f.ty.clone();
+                f.ty = ty;
 
-        mem_init = quote! {
-            #mem_init
-            #field: ::core::mem::MaybeUninit::uninit(),
-        };
+                mem_init = quote! {
+                    #mem_init
+                    ::core::mem::MaybeUninit::uninit(),
+                };
 
-        inst_init = quote! {
-            #inst_init
-            #field: #krate::slab::Slab::<#ty>::new(&mut mem.#field),
-        };
-    }
+                let i = syn::Index::from(i);
+                inst_init = quote! {
+                    #inst_init
+                    #krate::slab::Slab::<#ty2>::new(&mut mem.#i),
+                };
+            }
+
+            let mfs = Fields::Unnamed(mfs);
+            mem_fields = quote!(#mfs;);
+            mem_init = quote!((#mem_init));
+            inst_init = quote!((#inst_init));
+            Fields::Unnamed(fields)
+        }
+        Fields::Unit => panic!("Slab doesn't support unit structs"),
+    };
 
     let mem_init = quote! {
         impl #mem_ident {
             #doc_hidden
             const fn new() -> Self {
                 unsafe {
-                    Self {
-                        #mem_init
-                    }
+                    Self #mem_init
                 }
             }
         }
@@ -140,9 +202,7 @@ pub fn imp(input: TokenStream) -> TokenStream {
             fn new(mem: *mut #mem_ident) -> Self {
                 unsafe {
                     let mem = &mut *mem;
-                    Self {
-                        #inst_init
-                    }
+                    Self #inst_init
                 }
             }
         }
@@ -154,8 +214,7 @@ pub fn imp(input: TokenStream) -> TokenStream {
         struct #mem_ident #mem_fields
         unsafe impl Sync for #mem_ident {}
         #mem_init
-        #doc_hidden
-        pub struct #inst_ident #inst_fields
+        #item
         #inst_init
     }
     .into()

@@ -60,6 +60,7 @@ pub mod queue;
 pub mod runtime;
 mod sealed;
 pub mod slab;
+pub use avr_async_macros::slab;
 pub mod sync;
 mod sync_unsafe_cell;
 pub mod task;

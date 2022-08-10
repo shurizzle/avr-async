@@ -103,7 +103,8 @@ impl<'a, 'b> Future for NextTick<'a, 'b> {
     }
 }
 
-avr_async::slab!(GlobalSlab { pub ticker: Ticker<1> });
+#[avr_async::slab]
+pub struct GlobalSlab(pub Ticker<1>);
 
 pub struct Runtime {
     tc1: arduino_hal::pac::TC1,
@@ -135,7 +136,7 @@ impl Runtime {
             led1: Some(led1),
             led2: Some(led2),
             cpu: peripherals.CPU,
-            ticker: Ticker::new(slab.ticker),
+            ticker: Ticker::new(slab.0),
             ready: false,
         }
     }
@@ -143,15 +144,6 @@ impl Runtime {
     #[inline]
     pub fn subscribe_ticker<'a>(&mut self) -> Option<TickerListener<'a>> {
         self.ticker.subscribe()
-    }
-}
-
-pub struct Culo;
-
-impl avr_async::runtime::Ready for Culo {
-    #[inline]
-    fn is_ready(&self, _: &CriticalSection) -> bool {
-        true
     }
 }
 

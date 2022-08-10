@@ -1,3 +1,4 @@
+use proc_macro2::Ident;
 use syn::{parse::Parse, Path, Token};
 
 pub struct Parameters<T: Parse> {
@@ -14,4 +15,8 @@ impl<T: Parse> Parse for Parameters<T> {
             def: input.parse()?,
         })
     }
+}
+
+pub fn unraw(ident: &Ident) -> String {
+    ident.to_string().trim_start_matches("r#").to_owned()
 }

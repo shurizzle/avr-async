@@ -9,7 +9,7 @@ pub fn task_compose(input: TokenStream) -> TokenStream {
     task::imp(input)
 }
 
-#[proc_macro]
-pub fn slab(input: TokenStream) -> TokenStream {
-    slab::imp(input)
+#[proc_macro_attribute]
+pub fn slab(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    slab::imp(attrs, input)
 }

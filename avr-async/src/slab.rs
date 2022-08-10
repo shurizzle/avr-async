@@ -106,14 +106,3 @@ impl<T> const AsMut<T> for SlabBox<T> {
         DerefMut::deref_mut(self)
     }
 }
-
-pub mod __private {
-    pub use avr_async_macros::slab;
-}
-
-#[macro_export]
-macro_rules! slab {
-    ($($tt:tt)+) => {
-        $crate::slab::__private::slab!($crate, $($tt)+);
-    };
-}
