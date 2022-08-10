@@ -104,7 +104,7 @@ impl<'a, 'b> Future for NextTick<'a, 'b> {
 }
 
 #[avr_async::slab]
-pub struct GlobalSlab(pub Ticker<1>);
+struct GlobalSlab(pub Ticker<1>);
 
 pub struct Runtime {
     tc1: arduino_hal::pac::TC1,

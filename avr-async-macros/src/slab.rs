@@ -3,8 +3,13 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
-    parse::Parse, parse_quote, punctuated::Punctuated, token::Bracket, AttrStyle, Attribute, Field,
-    Fields, FieldsNamed, FieldsUnnamed, Ident, Item, Path, PathArguments, PathSegment, Token, Type,
+    parse::{Parse, ParseStream},
+    parse_quote,
+    punctuated::Punctuated,
+    spanned::Spanned,
+    token::{Bracket, Crate},
+    AttrStyle, Attribute, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Item, Path,
+    PathArguments, PathSegment, Token, Type,
 };
 
 use crate::common::unraw;
@@ -25,19 +30,82 @@ impl Parse for SlabDef {
     }
 }
 
-// TODO: parse attributes
-pub fn imp(_attrs: TokenStream, input: TokenStream) -> TokenStream {
-    imp2("::avr_async", input)
+pub struct Attributes {
+    pub krate: Option<Path>,
 }
 
-fn imp2(krate: &str, input: TokenStream) -> TokenStream {
+pub struct AttributeName {
+    pub span: Span,
+    pub name: String,
+}
+
+fn parse_key(input: &ParseStream) -> syn::Result<AttributeName> {
+    if input.peek(Ident) {
+        input.parse::<Ident>().map(|x| AttributeName {
+            span: x.span(),
+            name: unraw(&x),
+        })
+    } else if input.peek(Crate) {
+        input.parse::<Crate>().map(|x| AttributeName {
+            span: x.span,
+            name: "crate".to_string(),
+        })
+    } else {
+        Err(input.error("Expected ident"))
+    }
+}
+
+impl Parse for Attributes {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.is_empty() {
+            return Ok(Self { krate: None });
+        }
+
+        let mut krate = None;
+
+        let key = parse_key(&input)?;
+
+        if key.name != "crate" {
+            return Err(syn::Error::new(
+                key.span,
+                format!("Invalid attribute {}", key.name),
+            ));
+        }
+
+        if krate.is_some() {
+            return Err(input.error("crate attribute defined multiple times"));
+        }
+
+        input.parse::<Token![=]>()?;
+        let value: Path = input.parse()?;
+        krate = Some(value);
+        if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+        }
+
+        if !input.is_empty() {
+            return Err(input.error("Invalid attributes"));
+        }
+
+        Ok(Self { krate })
+    }
+}
+
+pub fn imp(attrs: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
+    let krate = syn::parse::<Attributes>(attrs)?
+        .krate
+        .unwrap_or_else(|| syn::parse_str("::avr_async").unwrap());
+    generate(krate, input)
+}
+
+fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
     let span = Span::call_site();
 
-    let item: Item = syn::parse(input).expect("Cannot parse input");
+    let item: Item = syn::parse(input)?;
 
     let mut item = match item {
         Item::Struct(s) => s,
-        _ => panic!("A slab can only be a struct"),
+        _ => return Err(syn::Error::new_spanned(item, "A slab can only be a struct")),
     };
 
     let has_generics = !(item.generics.params.is_empty()
@@ -46,10 +114,11 @@ fn imp2(krate: &str, input: TokenStream) -> TokenStream {
         && item.generics.where_clause.is_none());
 
     if has_generics {
-        panic!("Slab doesn't support generics or lifetimes");
+        return Err(syn::Error::new(
+            item.generics.span(),
+            "Slab doesn't support generics or lifetimes",
+        ));
     }
-
-    let krate: Path = syn::parse_str(krate).expect("Invalid crate path");
 
     let doc_hidden = Attribute {
         pound_token: Token![#](span),
@@ -170,7 +239,12 @@ fn imp2(krate: &str, input: TokenStream) -> TokenStream {
             inst_init = quote!((#inst_init));
             Fields::Unnamed(fields)
         }
-        Fields::Unit => panic!("Slab doesn't support unit structs"),
+        Fields::Unit => {
+            return Err(syn::Error::new_spanned(
+                item,
+                "Slab doesn't support unit structs",
+            ))
+        }
     };
 
     let mem_init = quote! {
@@ -208,7 +282,7 @@ fn imp2(krate: &str, input: TokenStream) -> TokenStream {
         }
     };
 
-    quote! {
+    Ok(quote! {
         #doc_hidden
         #[allow(non_camel_case_types)]
         struct #mem_ident #mem_fields
@@ -217,5 +291,5 @@ fn imp2(krate: &str, input: TokenStream) -> TokenStream {
         #item
         #inst_init
     }
-    .into()
+    .into())
 }
