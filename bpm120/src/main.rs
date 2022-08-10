@@ -172,6 +172,7 @@ impl avr_async::runtime::Runtime for Runtime {
 
     #[inline]
     fn snapshot(&mut self, cs: &CriticalSection) {
+        self.ready = false;
         self.ticker.snapshot(cs)
     }
 
