@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
-#![feature(abi_avr_interrupt, asm_experimental_arch)]
+// #![feature(abi_avr_interrupt, asm_experimental_arch)]
+#![feature(asm_experimental_arch)]
 
 use core::{future::Future, task::Poll};
 
@@ -194,7 +195,7 @@ impl avr_async::runtime::Runtime for Runtime {
     }
 
     #[inline]
-    unsafe fn timer0_compa(&mut self, _cs: &CriticalSection) {
+    unsafe fn timer1_compa(&mut self, _cs: &CriticalSection) {
         if self.ticker.tick() {
             self.wake()
         }

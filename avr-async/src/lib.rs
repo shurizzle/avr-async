@@ -55,6 +55,7 @@ unsafe impl GlobalAlloc for GlobalAllocator {
 #[global_allocator]
 static ALLOCATOR: GlobalAllocator = GlobalAllocator;
 
+pub(crate) mod chip;
 pub mod executor;
 pub mod queue;
 pub mod runtime;

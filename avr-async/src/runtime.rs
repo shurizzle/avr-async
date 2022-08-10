@@ -12,17 +12,4 @@ macro_rules! ready {
     }};
 }
 
-pub trait Runtime: Ready {
-    fn init(&mut self, cs: &CriticalSection);
-
-    fn snapshot(&mut self, cs: &CriticalSection);
-
-    fn idle(&self);
-
-    fn wake(&mut self);
-
-    fn shutdown(&self);
-
-    /// # Safety
-    unsafe fn timer0_compa(&mut self, _cs: &CriticalSection) {}
-}
+pub use crate::chip::Runtime;
