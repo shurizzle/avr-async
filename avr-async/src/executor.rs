@@ -128,7 +128,5 @@ pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 
 
 #[doc(hidden)]
 pub unsafe fn wake() {
-    if let Some(runtime) = (*RUNTIME.get()).as_ref() {
-        runtime.wake();
-    }
+    (*RUNTIME.get()).as_ref().unwrap_unchecked().wake()
 }
