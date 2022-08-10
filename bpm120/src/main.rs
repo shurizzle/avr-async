@@ -9,7 +9,7 @@ use arduino_hal::{
     port::mode::Output,
 };
 use avr_async::{
-    ayield,
+    r#yield,
     slab::{Slab, SlabBox, Slabbed},
 };
 use heapless::Vec;
@@ -54,6 +54,15 @@ impl<const N: usize> Ticker<N> {
         }
     }
 
+    pub fn snapshot(&mut self, _cs: &interrupt::CriticalSection) {
+        if self.changed {
+            self.snapshots.fill(Some(self.current));
+            self.changed = false;
+        } else {
+            self.snapshots.fill(None);
+        }
+    }
+
     #[doc(hidden)]
     pub unsafe fn tick(&mut self) -> bool {
         if self.half {
@@ -64,17 +73,6 @@ impl<const N: usize> Ticker<N> {
             self.half = true;
         }
         self.changed
-    }
-}
-
-impl<const N: usize> avr_async::runtime::State for Ticker<N> {
-    fn snapshot(&mut self, _cs: &interrupt::CriticalSection) {
-        if self.changed {
-            self.snapshots.fill(Some(self.current));
-            self.changed = false;
-        } else {
-            self.snapshots.fill(None);
-        }
     }
 }
 
@@ -117,8 +115,11 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(peripherals: arduino_hal::Peripherals, slab: GlobalSlab) -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        let peripherals = arduino_hal::Peripherals::take().unwrap();
         util::reset_irqs(&peripherals);
+        let slab = GlobalSlab::take().unwrap();
 
         let (mut led1, mut led2) = {
             let pins = arduino_hal::pins!(peripherals);
@@ -179,7 +180,6 @@ impl avr_async::runtime::Runtime for Runtime {
 
     #[inline]
     fn snapshot(&mut self, cs: &CriticalSection) {
-        use avr_async::runtime::State;
         self.ticker.snapshot(cs)
     }
 
@@ -214,7 +214,7 @@ async fn switch_leds(
     mut led2: arduino_hal::port::Pin<Output, PB0>,
 ) {
     let mut status = false;
-    ayield().await;
+    r#yield().await;
 
     loop {
         if ticker.next().await == 0 {
@@ -237,10 +237,7 @@ async fn switch_leds(
 fn main() -> ! {
     unsafe { ::core::arch::asm!("cli") };
 
-    let mut runtime = Runtime::new(
-        arduino_hal::Peripherals::take().unwrap(),
-        GlobalSlab::take().unwrap(),
-    );
+    let mut runtime = Runtime::new();
 
     let task1 = switch_leds(
         runtime.subscribe_ticker().unwrap(),

@@ -1,9 +1,5 @@
 use avr_device::interrupt::CriticalSection;
 
-pub trait State {
-    fn snapshot(&mut self, cs: &CriticalSection);
-}
-
 pub trait Ready {
     fn is_ready(&self, cs: &CriticalSection) -> bool;
 }
@@ -29,11 +25,4 @@ pub trait Runtime: Ready {
 
     /// # Safety
     unsafe fn timer0_compa(&mut self, _cs: &CriticalSection) {}
-}
-
-pub trait StatefulRuntime<S: State>: Runtime {
-    fn state(&self) -> &S;
-
-    #[doc(hidden)]
-    unsafe fn state_mut(&mut self) -> &mut S;
 }

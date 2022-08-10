@@ -3,8 +3,6 @@ use core::{future::Future, marker::PhantomData, task::Poll};
 use avr_device::interrupt::{self, CriticalSection};
 use num_traits::{Bounded, CheckedAdd, NumAssignOps, One, Unsigned, Zero};
 
-use crate::runtime::State;
-
 pub trait UInt: Unsigned + Copy + NumAssignOps + Ord + Bounded + CheckedAdd {}
 
 impl<I: Unsigned + Copy + NumAssignOps + Ord + Bounded + CheckedAdd> UInt for I {}
@@ -57,11 +55,9 @@ impl<I: UInt> TickCounter<I> {
     pub fn interval<'a, 'b: 'a>(&'b self, interval: I) -> TickInterval<'a, I> {
         TickInterval::new(self, interval)
     }
-}
 
-impl<I: UInt> State for TickCounter<I> {
     #[inline(always)]
-    fn snapshot(&mut self, _cs: &CriticalSection) {
+    pub fn snapshot(&mut self, _cs: &CriticalSection) {
         self.snapshot = self.counter;
     }
 }
