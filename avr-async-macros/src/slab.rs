@@ -286,6 +286,7 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
         #doc_hidden
         #[allow(non_camel_case_types)]
         struct #mem_ident #mem_fields
+        #doc_hidden
         unsafe impl Sync for #mem_ident {}
         #mem_init
         #item
