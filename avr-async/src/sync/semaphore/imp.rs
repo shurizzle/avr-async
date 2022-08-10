@@ -48,6 +48,14 @@ impl<const N: usize> InnerSemaphore<N> {
         matches!(self.bounds, None)
     }
 
+    #[inline]
+    pub fn is_full(&self) -> bool {
+        self.bounds
+            .as_ref()
+            .map(|&(h, t)| h == Self::inc(t))
+            .unwrap_or(false)
+    }
+
     pub fn try_acquire_enqueue(&mut self, perms: usize) -> Option<TryAcquireEnqueue<N>> {
         if let Ok(p) = unsafe { (*(self as *mut Self)).try_acquire(perms) } {
             return Some(TryAcquireEnqueue::from_permit(p));
@@ -105,6 +113,9 @@ impl<const N: usize> InnerSemaphore<N> {
     }
 
     fn dequeued_descriptor(&mut self) {
+        let was_full = self.is_full();
+        let mut signal = false;
+
         loop {
             unsafe {
                 match self.bounds {
@@ -118,6 +129,7 @@ impl<const N: usize> InnerSemaphore<N> {
                             } else {
                                 self.bounds = Some((Self::inc(head), tail));
                             }
+                            signal = true;
                         } else {
                             break;
                         }
@@ -126,7 +138,10 @@ impl<const N: usize> InnerSemaphore<N> {
                 }
             }
         }
-        unsafe { crate::executor::wake() };
+
+        if was_full && signal {
+            unsafe { crate::executor::wake() };
+        }
     }
 
     pub(crate) fn release(&mut self, permits: usize) {
