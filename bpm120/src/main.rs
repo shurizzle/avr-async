@@ -145,6 +145,22 @@ impl Runtime {
     }
 }
 
+pub struct Culo;
+
+impl avr_async::runtime::Ready for Culo {
+    #[inline]
+    fn is_ready(&self, _: &CriticalSection) -> bool {
+        true
+    }
+}
+
+impl avr_async::runtime::Ready for Runtime {
+    #[inline]
+    fn is_ready(&self, _: &CriticalSection) -> bool {
+        self.ready
+    }
+}
+
 impl avr_async::runtime::Runtime for Runtime {
     #[inline]
     fn init(&mut self, _: &CriticalSection) {
@@ -159,11 +175,6 @@ impl avr_async::runtime::Runtime for Runtime {
             self.tc1.tifr1.write(|w| w.tov1().bit(true));
             self.tc1.timsk1.write(|w| w.ocie1a().set_bit());
         }
-    }
-
-    #[inline]
-    fn is_ready(&self) -> bool {
-        unsafe { core::ptr::read_volatile(&self.ready) }
     }
 
     #[inline]

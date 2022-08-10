@@ -4,6 +4,8 @@ use core::{cell::UnsafeCell, future::Future, pin::Pin, task::Poll};
 
 use either::Either;
 
+use crate::runtime::Ready;
+
 pub use self::imp::{SemaphorePermit, TryAcquireError};
 
 #[derive(Debug)]
@@ -46,6 +48,13 @@ impl<const N: usize> Semaphore<N> {
     #[allow(clippy::mut_from_ref)]
     pub(crate) fn inner(&self) -> &mut imp::InnerSemaphore<N> {
         unsafe { &mut *(self.inner.get()) }
+    }
+}
+
+impl<const N: usize> Ready for Semaphore<N> {
+    #[inline]
+    fn is_ready(&self, cs: &avr_device::interrupt::CriticalSection) -> bool {
+        self.inner().is_ready(cs)
     }
 }
 

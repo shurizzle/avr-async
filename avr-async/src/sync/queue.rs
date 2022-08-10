@@ -1,5 +1,7 @@
 use core::{future::Future, pin::Pin, task::Poll};
 
+use crate::runtime::Ready;
+
 pub struct Queue<T, const N: usize> {
     inner: crate::queue::Queue<T, N>,
 }
@@ -42,6 +44,13 @@ impl<T, const N: usize> Queue<T, N> {
     #[inline(always)]
     pub fn dequeue(&mut self) -> Dequeue<T, N> {
         Dequeue::new(self)
+    }
+}
+
+impl<T, const N: usize> Ready for Queue<T, N> {
+    #[inline]
+    fn is_ready(&self, _: &avr_device::interrupt::CriticalSection) -> bool {
+        !self.inner.is_empty()
     }
 }
 

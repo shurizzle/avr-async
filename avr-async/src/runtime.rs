@@ -4,10 +4,20 @@ pub trait State {
     fn snapshot(&mut self, cs: &CriticalSection);
 }
 
-pub trait Runtime {
-    fn init(&mut self, cs: &CriticalSection);
+pub trait Ready {
+    fn is_ready(&self, cs: &CriticalSection) -> bool;
+}
 
-    fn is_ready(&self) -> bool;
+#[macro_export]
+macro_rules! ready {
+    ($cs:expr, $($cond:expr),+ $(,)?) => {{
+        let cs: &CriticalSection = $cs;
+        $($crate::runtime::Ready::is_ready(&($cond), cs))||+
+    }};
+}
+
+pub trait Runtime: Ready {
+    fn init(&mut self, cs: &CriticalSection);
 
     fn snapshot(&mut self, cs: &CriticalSection);
 

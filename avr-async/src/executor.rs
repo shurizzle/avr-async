@@ -108,8 +108,9 @@ pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 
     loop {
         unsafe {
             ::core::arch::asm!("cli");
-            if runtime.is_ready() {
-                runtime.snapshot(&CriticalSection::new());
+            let cs = CriticalSection::new();
+            if runtime.is_ready(&cs) {
+                runtime.snapshot(&cs);
                 ::core::arch::asm!("sei");
 
                 if let Poll::Ready(()) = task.as_mut().poll(&mut context) {

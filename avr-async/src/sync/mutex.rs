@@ -6,6 +6,8 @@ use core::{
     task::Poll,
 };
 
+use crate::runtime::Ready;
+
 use super::semaphore::{Acquire, Semaphore};
 
 pub struct TryLockError;
@@ -36,6 +38,13 @@ impl<T, const N: usize> Mutex<T, N> {
                 core::mem::forget(x);
                 MutexGuard { mutex: self }
             })
+    }
+}
+
+impl<T, const N: usize> Ready for Mutex<T, N> {
+    #[inline]
+    fn is_ready(&self, cs: &avr_device::interrupt::CriticalSection) -> bool {
+        self.lock.is_ready(cs)
     }
 }
 

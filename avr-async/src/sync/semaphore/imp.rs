@@ -2,6 +2,8 @@ use core::{cell::UnsafeCell, mem::MaybeUninit};
 
 use either::Either;
 
+use crate::runtime::Ready;
+
 pub struct TryAcquireError;
 
 #[derive(Debug)]
@@ -39,6 +41,11 @@ impl<const N: usize> InnerSemaphore<N> {
             .as_ref()
             .map(|&(head, tail)| (tail.wrapping_sub(head).wrapping_add(N) % N) + 1)
             .unwrap_or(0)
+    }
+
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        matches!(self.bounds, None)
     }
 
     pub fn try_acquire_enqueue(&mut self, perms: usize) -> Option<TryAcquireEnqueue<N>> {
@@ -157,6 +164,13 @@ impl<const N: usize> InnerSemaphore<N> {
         if signal {
             unsafe { crate::executor::wake() };
         }
+    }
+}
+
+impl<const N: usize> Ready for InnerSemaphore<N> {
+    #[inline]
+    fn is_ready(&self, _: &avr_device::interrupt::CriticalSection) -> bool {
+        !self.is_empty()
     }
 }
 
