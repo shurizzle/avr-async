@@ -6,9 +6,10 @@ use core::{
 use avr_device::interrupt::CriticalSection;
 use pin_utils::pin_mut;
 
-use crate::{chip::RawRuntime, runtime::Runtime, SyncUnsafeCell};
+use crate::{chip::RawRuntime, runtime::Runtime};
 
-pub static RUNTIME: SyncUnsafeCell<Option<RawRuntime>> = SyncUnsafeCell::new(None);
+#[no_mangle]
+pub static mut RUNTIME: RawRuntime = RawRuntime::uninit();
 
 static VTABLE: RawWakerVTable = {
     unsafe fn clone(_: *const ()) -> RawWaker {
@@ -31,13 +32,9 @@ static VTABLE: RawWakerVTable = {
 };
 
 pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 'a) -> ! {
-    unsafe { core::ptr::write(RUNTIME.get(), Some(RawRuntime::new(runtime))) };
-    let waker = unsafe {
-        Waker::from_raw(RawWaker::new(
-            (*RUNTIME.get()).as_ref().unwrap_unchecked() as *const RawRuntime as *const (),
-            &VTABLE,
-        ))
-    };
+    unsafe { RUNTIME = RawRuntime::new(runtime) };
+    let waker =
+        unsafe { Waker::from_raw(RawWaker::new(&RUNTIME as *const _ as *const (), &VTABLE)) };
     let mut context = Context::from_waker(&waker);
     pin_mut!(task);
 
@@ -66,5 +63,5 @@ pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 
 
 #[doc(hidden)]
 pub unsafe fn wake() {
-    (*RUNTIME.get()).as_ref().unwrap_unchecked().wake()
+    RUNTIME.wake()
 }

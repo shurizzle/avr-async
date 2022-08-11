@@ -226,17 +226,17 @@ async fn switch_leds(
     }
 }
 
-#[arduino_hal::entry]
-#[inline(always)]
-fn main() -> ! {
-    unsafe { ::core::arch::asm!("cli") };
+#[doc(hidden)]
+#[export_name = "main"]
+pub unsafe extern "C" fn main() -> ! {
+    ::core::arch::asm!("cli");
 
     let mut runtime = Runtime::new();
 
     let task1 = switch_leds(
         runtime.subscribe_ticker().unwrap(),
-        unsafe { runtime.led1.take().unwrap_unchecked() },
-        unsafe { runtime.led2.take().unwrap_unchecked() },
+        runtime.led1.take().unwrap_unchecked(),
+        runtime.led2.take().unwrap_unchecked(),
     );
 
     avr_async::executor::run(&mut runtime, avr_async::task_compose!(task1))
