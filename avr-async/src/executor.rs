@@ -6,7 +6,10 @@ use core::{
 use avr_device::interrupt::CriticalSection;
 use pin_utils::pin_mut;
 
-use crate::{chip::RawRuntime, runtime::Runtime};
+use crate::{
+    chip::RawRuntime,
+    runtime::{Memory, Runtime},
+};
 
 pub mod __private {
     #[no_mangle]
@@ -33,32 +36,38 @@ static VTABLE: RawWakerVTable = {
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };
 
-pub fn run<'a, R, Fut, F>(runtime: &'a mut R, main: F) -> !
+pub fn run<R, F, Fut>(main: F) -> !
 where
     R: Runtime,
-    Fut: Future<Output = ()> + 'a,
-    F: FnOnce<R::Result, Output = Fut>,
+    Fut: Future<Output = ()>,
+    F: FnOnce<R::Arguments, Output = Fut>,
 {
-    unsafe { self::__private::RUNTIME = RawRuntime::new(runtime) };
-    let waker = unsafe {
-        Waker::from_raw(RawWaker::new(
+    unsafe {
+        ::core::arch::asm!("cli");
+        let cs = CriticalSection::new();
+
+        let mut mem = <<R as Runtime>::Memory as Memory>::alloc();
+
+        let (mut runtime, args) = R::new(
+            <<R as Runtime>::Memory as Memory>::from_ptr(&mut mem as *mut _),
+            &cs,
+        );
+
+        self::__private::RUNTIME = RawRuntime::new(&runtime);
+        let waker = Waker::from_raw(RawWaker::new(
             &self::__private::RUNTIME as *const _ as *const (),
             &VTABLE,
-        ))
-    };
-    let mut context = Context::from_waker(&waker);
-    let task = {
-        let args = runtime.init(unsafe { &CriticalSection::new() });
-        unsafe { ::core::arch::asm!("sei") };
-        core::ops::FnOnce::call_once(main, args)
-    };
+        ));
+        let mut context = Context::from_waker(&waker);
 
-    pin_mut!(task);
+        ::core::arch::asm!("sei");
 
-    loop {
-        unsafe {
+        let task = core::ops::FnOnce::call_once(main, args);
+
+        pin_mut!(task);
+
+        loop {
             ::core::arch::asm!("cli");
-            let cs = CriticalSection::new();
             if runtime.is_ready(&cs) {
                 runtime.snapshot(&cs);
                 ::core::arch::asm!("sei");

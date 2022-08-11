@@ -3,7 +3,7 @@
 // #![feature(abi_avr_interrupt, asm_experimental_arch)]
 #![feature(asm_experimental_arch)]
 
-use core::{future::Future, task::Poll};
+use core::{future::Future, mem::MaybeUninit, task::Poll};
 
 use arduino_hal::{
     hal::port::{PB0, PD5},
@@ -13,14 +13,13 @@ use avr_async::{
     r#yield,
     slab::{Slab, SlabBox, Slabbed},
 };
-use heapless::Vec;
 use panic_halt as _;
 
 use avr_device::interrupt::{self, CriticalSection};
 
 mod util;
 
-pub type TickerSlab<const N: usize> = Vec<Option<u8>, N>;
+pub type TickerSlab<const N: usize> = [Option<u8>; N];
 
 pub struct Ticker<const N: usize> {
     half: bool,
@@ -35,24 +34,27 @@ impl<const N: usize> Slabbed for Ticker<N> {
 
 impl<const N: usize> Ticker<N> {
     #[inline(always)]
-    pub fn new(slab: Slab<Self>) -> Self {
-        Self {
-            half: false,
-            changed: false,
-            current: 0,
-            snapshots: slab.get(Vec::new()),
-        }
-    }
+    pub fn new(slab: Slab<Self>) -> (Self, [TickerListener; N]) {
+        let mut snapshots = slab.get([None; N]);
 
-    pub fn subscribe<'a>(&mut self) -> Option<TickerListener<'a>> {
-        if matches!(self.snapshots.push(None), Ok(())) {
-            Some(TickerListener(unsafe {
-                &mut *((self.snapshots.as_mut_ptr() as *mut Option<u8>)
-                    .add(self.snapshots.len() - 1))
-            }))
-        } else {
-            None
-        }
+        let listeners = unsafe {
+            let mut listeners = MaybeUninit::<[TickerListener; N]>::uninit();
+            for i in 0..N {
+                *((listeners.as_mut_ptr() as *mut TickerListener).add(i)) =
+                    TickerListener(&mut *(snapshots.as_mut_ptr() as *mut Option<u8>));
+            }
+            listeners.assume_init()
+        };
+
+        (
+            Self {
+                half: false,
+                changed: false,
+                current: 0,
+                snapshots,
+            },
+            listeners,
+        )
     }
 
     pub fn snapshot(&mut self, _cs: &interrupt::CriticalSection) {
@@ -77,19 +79,20 @@ impl<const N: usize> Ticker<N> {
     }
 }
 
-pub struct TickerListener<'a>(&'a mut Option<u8>);
+pub struct TickerListener(&'static mut Option<u8>);
 
-impl<'a> TickerListener<'a> {
-    pub fn next<'b>(&'b mut self) -> NextTick<'b, 'a> {
+impl TickerListener {
+    #[allow(clippy::should_implement_trait)]
+    pub fn next(&mut self) -> NextTick {
         NextTick { ticker: self }
     }
 }
 
-pub struct NextTick<'a, 'b> {
-    ticker: &'a mut TickerListener<'b>,
+pub struct NextTick<'a> {
+    ticker: &'a mut TickerListener,
 }
 
-impl<'a, 'b> Future for NextTick<'a, 'b> {
+impl<'a> Future for NextTick<'a> {
     type Output = u8;
 
     fn poll(
@@ -104,24 +107,45 @@ impl<'a, 'b> Future for NextTick<'a, 'b> {
     }
 }
 
-#[avr_async::slab]
-struct GlobalSlab(pub Ticker<1>);
-
-pub struct Runtime {
-    tc1: arduino_hal::pac::TC1,
-    pub led1: Option<arduino_hal::port::Pin<Output, PD5>>,
-    pub led2: Option<arduino_hal::port::Pin<Output, PB0>>,
+pub struct Runtime<const N: usize> {
     cpu: arduino_hal::pac::CPU,
-    ticker: Ticker<1>,
+    ticker: Ticker<N>,
     ready: bool,
 }
 
-impl Runtime {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+impl<const N: usize> avr_async::runtime::Ready for Runtime<N> {
+    #[inline]
+    fn is_ready(&self, _: &CriticalSection) -> bool {
+        self.ready
+    }
+}
+
+impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
+    type Memory = Slab<Ticker<N>>;
+
+    type Arguments = (
+        [TickerListener; N],
+        arduino_hal::port::Pin<Output, PD5>,
+        arduino_hal::port::Pin<Output, PB0>,
+    );
+
+    fn new(mem: Self::Memory, _: &CriticalSection) -> (Self, Self::Arguments) {
         let peripherals = arduino_hal::Peripherals::take().unwrap();
+
         util::reset_irqs(&peripherals);
-        let slab = GlobalSlab::take().unwrap();
+
+        // Set TIMER1_COMPA to 1/4s
+        {
+            peripherals.TC1.tccr1a.write(|w| w.wgm1().bits(0));
+            peripherals
+                .TC1
+                .tccr1b
+                .write(|w| w.cs1().bits(5).wgm1().bits(0b01));
+            peripherals.TC1.tcnt1.write(|w| unsafe { w.bits(0) });
+            peripherals.TC1.ocr1a.write(|w| unsafe { w.bits(3907) });
+            peripherals.TC1.tifr1.write(|w| w.tov1().bit(true));
+            peripherals.TC1.timsk1.write(|w| w.ocie1a().set_bit());
+        }
 
         let (mut led1, mut led2) = {
             let pins = arduino_hal::pins!(peripherals);
@@ -132,57 +156,16 @@ impl Runtime {
         led1.set_low();
         led2.set_low();
 
-        Self {
-            tc1: peripherals.TC1,
-            led1: Some(led1),
-            led2: Some(led2),
-            cpu: peripherals.CPU,
-            ticker: Ticker::new(slab.0),
-            ready: false,
-        }
-    }
+        let (ticker, listeners) = Ticker::new(mem);
 
-    #[inline]
-    pub fn subscribe_ticker<'a>(&mut self) -> Option<TickerListener<'a>> {
-        self.ticker.subscribe()
-    }
-}
-
-impl avr_async::runtime::Ready for Runtime {
-    #[inline]
-    fn is_ready(&self, _: &CriticalSection) -> bool {
-        self.ready
-    }
-}
-
-impl avr_async::runtime::Runtime for Runtime {
-    type Result = (
-        TickerListener<'static>,
-        arduino_hal::port::Pin<Output, PD5>,
-        arduino_hal::port::Pin<Output, PB0>,
-    );
-
-    #[inline]
-    fn init(&mut self, _: &CriticalSection) -> Self::Result {
-        unsafe { ::core::arch::asm!("sei") };
-
-        // Set TIMER1_COMPA to 1/4s
-        {
-            self.tc1.tccr1a.write(|w| w.wgm1().bits(0));
-            self.tc1.tccr1b.write(|w| w.cs1().bits(5).wgm1().bits(0b01));
-            self.tc1.tcnt1.write(|w| unsafe { w.bits(0) });
-            self.tc1.ocr1a.write(|w| unsafe { w.bits(3907) });
-            self.tc1.tifr1.write(|w| w.tov1().bit(true));
-            self.tc1.timsk1.write(|w| w.ocie1a().set_bit());
-        }
-
-        unsafe {
-            (
-                self.subscribe_ticker().unwrap(),
-                self.led1.take().unwrap_unchecked(),
-                self.led2.take().unwrap_unchecked(),
-            )
-        }
+        (
+            Self {
+                cpu: peripherals.CPU,
+                ticker,
+                ready: false,
+            },
+            (listeners, led1, led2),
+        )
     }
 
     #[inline]
@@ -216,8 +199,8 @@ impl avr_async::runtime::Runtime for Runtime {
     }
 }
 
-async fn switch_leds(
-    mut ticker: TickerListener<'_>,
+async fn main(
+    [mut ticker]: [TickerListener; 1],
     mut led1: arduino_hal::port::Pin<Output, PD5>,
     mut led2: arduino_hal::port::Pin<Output, PB0>,
 ) {
@@ -242,10 +225,6 @@ async fn switch_leds(
 
 #[doc(hidden)]
 #[export_name = "main"]
-pub unsafe extern "C" fn main() -> ! {
-    ::core::arch::asm!("cli");
-
-    let mut runtime = Runtime::new();
-
-    avr_async::executor::run(&mut runtime, switch_leds)
+pub unsafe extern "C" fn __avr_async_main() -> ! {
+    avr_async::executor::run::<Runtime<1>, _, _>(main)
 }
