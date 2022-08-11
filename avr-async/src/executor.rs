@@ -33,10 +33,12 @@ static VTABLE: RawWakerVTable = {
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };
 
-pub fn run<'a, R: Runtime, Fut: Future<Output = ()> + 'a, F: FnOnce<R::Result, Output = Fut>>(
-    runtime: &'a mut R,
-    main: F,
-) -> ! {
+pub fn run<'a, R, Fut, F>(runtime: &'a mut R, main: F) -> !
+where
+    R: Runtime,
+    Fut: Future<Output = ()> + 'a,
+    F: FnOnce<R::Result, Output = Fut>,
+{
     unsafe { self::__private::RUNTIME = RawRuntime::new(runtime) };
     let waker = unsafe {
         Waker::from_raw(RawWaker::new(
@@ -45,9 +47,11 @@ pub fn run<'a, R: Runtime, Fut: Future<Output = ()> + 'a, F: FnOnce<R::Result, O
         ))
     };
     let mut context = Context::from_waker(&waker);
-
-    let task = core::ops::FnOnce::call_once(main, runtime.init(unsafe { &CriticalSection::new() }));
-    unsafe { ::core::arch::asm!("sei") };
+    let task = {
+        let args = runtime.init(unsafe { &CriticalSection::new() });
+        unsafe { ::core::arch::asm!("sei") };
+        core::ops::FnOnce::call_once(main, args)
+    };
 
     pin_mut!(task);
 
