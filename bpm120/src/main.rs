@@ -156,8 +156,14 @@ impl avr_async::runtime::Ready for Runtime {
 }
 
 impl avr_async::runtime::Runtime for Runtime {
+    type Result = (
+        TickerListener<'static>,
+        arduino_hal::port::Pin<Output, PD5>,
+        arduino_hal::port::Pin<Output, PB0>,
+    );
+
     #[inline]
-    fn init(&mut self, _: &CriticalSection) {
+    fn init(&mut self, _: &CriticalSection) -> Self::Result {
         unsafe { ::core::arch::asm!("sei") };
 
         // Set TIMER1_COMPA to 1/4s
@@ -168,6 +174,14 @@ impl avr_async::runtime::Runtime for Runtime {
             self.tc1.ocr1a.write(|w| unsafe { w.bits(3907) });
             self.tc1.tifr1.write(|w| w.tov1().bit(true));
             self.tc1.timsk1.write(|w| w.ocie1a().set_bit());
+        }
+
+        unsafe {
+            (
+                self.subscribe_ticker().unwrap(),
+                self.led1.take().unwrap_unchecked(),
+                self.led2.take().unwrap_unchecked(),
+            )
         }
     }
 
@@ -233,11 +247,5 @@ pub unsafe extern "C" fn main() -> ! {
 
     let mut runtime = Runtime::new();
 
-    let task1 = switch_leds(
-        runtime.subscribe_ticker().unwrap(),
-        runtime.led1.take().unwrap_unchecked(),
-        runtime.led2.take().unwrap_unchecked(),
-    );
-
-    avr_async::executor::run(&mut runtime, avr_async::task_compose!(task1))
+    avr_async::executor::run(&mut runtime, switch_leds)
 }

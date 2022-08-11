@@ -6,7 +6,9 @@
     const_trait_impl,
     const_pin,
     const_slice_index,
-    negative_impls
+    negative_impls,
+    fn_traits,
+    unboxed_closures
 )]
 #![cfg_attr(feature = "alloc", feature(allocator_api, default_alloc_error_handler))]
 
@@ -61,6 +63,7 @@ pub mod queue;
 pub mod runtime;
 mod sealed;
 pub mod slab;
+pub(crate) mod tuple;
 pub use avr_async_macros::slab;
 pub mod sync;
 mod sync_unsafe_cell;

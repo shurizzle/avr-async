@@ -8,8 +8,10 @@ use pin_utils::pin_mut;
 
 use crate::{chip::RawRuntime, runtime::Runtime};
 
-#[no_mangle]
-pub static mut RUNTIME: RawRuntime = RawRuntime::uninit();
+pub mod __private {
+    #[no_mangle]
+    pub static mut RUNTIME: crate::chip::RawRuntime = crate::chip::RawRuntime::uninit();
+}
 
 static VTABLE: RawWakerVTable = {
     unsafe fn clone(_: *const ()) -> RawWaker {
@@ -31,14 +33,23 @@ static VTABLE: RawWakerVTable = {
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };
 
-pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 'a) -> ! {
-    unsafe { RUNTIME = RawRuntime::new(runtime) };
-    let waker =
-        unsafe { Waker::from_raw(RawWaker::new(&RUNTIME as *const _ as *const (), &VTABLE)) };
+pub fn run<'a, R: Runtime, Fut: Future<Output = ()> + 'a, F: FnOnce<R::Result, Output = Fut>>(
+    runtime: &'a mut R,
+    main: F,
+) -> ! {
+    unsafe { self::__private::RUNTIME = RawRuntime::new(runtime) };
+    let waker = unsafe {
+        Waker::from_raw(RawWaker::new(
+            &self::__private::RUNTIME as *const _ as *const (),
+            &VTABLE,
+        ))
+    };
     let mut context = Context::from_waker(&waker);
-    pin_mut!(task);
 
-    runtime.init(unsafe { &CriticalSection::new() });
+    let task = core::ops::FnOnce::call_once(main, runtime.init(unsafe { &CriticalSection::new() }));
+    unsafe { ::core::arch::asm!("sei") };
+
+    pin_mut!(task);
 
     loop {
         unsafe {
@@ -63,5 +74,5 @@ pub fn run<'a, R: Runtime>(runtime: &'a mut R, task: impl Future<Output = ()> + 
 
 #[doc(hidden)]
 pub unsafe fn wake() {
-    RUNTIME.wake()
+    self::__private::RUNTIME.wake()
 }
