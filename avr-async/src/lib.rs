@@ -2,11 +2,9 @@
 #![feature(
     asm_experimental_arch,
     abi_avr_interrupt,
+    negative_impls,
     const_mut_refs,
     const_trait_impl,
-    const_pin,
-    const_slice_index,
-    negative_impls,
     fn_traits,
     unboxed_closures
 )]
