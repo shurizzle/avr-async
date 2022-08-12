@@ -4,10 +4,6 @@
 
 use core::{future::Future, mem::MaybeUninit, task::Poll};
 
-use arduino_hal::{
-    hal::port::{PB0, PD5},
-    port::{mode::Output, Pin},
-};
 use avr_async::{
     main,
     slab::{Slab, SlabBox, Slabbed},
@@ -18,25 +14,99 @@ use avr_device::interrupt::{self, CriticalSection};
 
 mod util;
 
+#[cfg(feature = "atmega32u4")]
+mod leds {
+    use arduino_hal::hal::port::{mode::Output, Pin, PB0, PD5};
+    use avr_hal_generic::port::PinOps;
+
+    pub struct Led<P: PinOps> {
+        pin: Pin<Output, P>,
+    }
+
+    impl<P: PinOps> Led<P> {
+        #[inline(always)]
+        pub fn new(pin: Pin<Output, P>) -> Self {
+            Self { pin }
+        }
+
+        #[inline(always)]
+        pub fn off(&mut self) {
+            self.pin.set_high()
+        }
+
+        #[inline(always)]
+        pub fn on(&mut self) {
+            self.pin.set_low()
+        }
+
+        #[inline(always)]
+        pub fn toggle(&mut self) {
+            self.pin.toggle()
+        }
+    }
+
+    pub type Led1 = Led<PD5>;
+    pub type Led2 = Led<PB0>;
+}
+
+#[cfg(feature = "atmega328p")]
+mod leds {
+    use arduino_hal::hal::port::{mode::Output, Pin, PC0, PC1};
+    use avr_hal_generic::port::PinOps;
+
+    pub struct Led<P: PinOps> {
+        pin: Pin<Output, P>,
+    }
+
+    impl<P: PinOps> Led<P> {
+        #[inline(always)]
+        pub fn new(pin: Pin<Output, P>) -> Self {
+            Self { pin }
+        }
+
+        #[inline(always)]
+        pub fn off(&mut self) {
+            self.pin.set_low()
+        }
+
+        #[inline(always)]
+        pub fn on(&mut self) {
+            self.pin.set_high()
+        }
+
+        #[inline(always)]
+        pub fn toggle(&mut self) {
+            self.pin.toggle()
+        }
+    }
+
+    pub type Led1 = Led<PC0>;
+    pub type Led2 = Led<PC1>;
+}
+
+use leds::*;
+
+#[cfg(all(not(feature = "atmega32u4"), not(feature = "atmega328p")))]
+compile_error!("Unsupported device");
+
+#[cfg(all(feature = "atmega328p", feature = "atmega32u4"))]
+compile_error!("You can't choose more than one device");
+
 #[main(runtime = Runtime<1>)]
-async fn main(
-    [mut ticker]: [TickerListener; 1],
-    mut led1: Pin<Output, PD5>,
-    mut led2: Pin<Output, PB0>,
-) {
+async fn main([mut ticker]: [TickerListener; 1], mut led1: Led1, mut led2: Led2) {
     let mut status = false;
 
     loop {
         if ticker.next().await == 0 {
-            led1.set_low();
-            led2.set_low();
+            led1.on();
+            led2.on();
         } else if status {
-            led1.set_low();
-            led2.set_high();
+            led1.off();
+            led2.on();
             status = false;
         } else {
-            led1.set_high();
-            led2.set_low();
+            led1.on();
+            led2.off();
             status = true;
         }
     }
@@ -146,7 +216,7 @@ impl<const N: usize> avr_async::runtime::Ready for Runtime<N> {
 impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
     type Memory = Slab<Ticker<N>>;
 
-    type Arguments = ([TickerListener; N], Pin<Output, PD5>, Pin<Output, PB0>);
+    type Arguments = ([TickerListener; N], Led1, Led2);
 
     fn new(mem: Self::Memory, _: &CriticalSection) -> (Self, Self::Arguments) {
         let peripherals = arduino_hal::Peripherals::take().unwrap();
@@ -169,11 +239,21 @@ impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
         let (mut led1, mut led2) = {
             let pins = arduino_hal::pins!(peripherals);
 
-            (pins.led_tx.into_output(), pins.led_rx.into_output())
+            #[cfg(feature = "atmega32u4")]
+            let led1 = pins.led_tx;
+            #[cfg(feature = "atmega32u4")]
+            let led2 = pins.led_rx;
+
+            #[cfg(feature = "atmega328p")]
+            let led1 = pins.a0;
+            #[cfg(feature = "atmega328p")]
+            let led2 = pins.a1;
+
+            (Led1::new(led1.into_output()), Led2::new(led2.into_output()))
         };
 
-        led1.set_low();
-        led2.set_low();
+        led1.on();
+        led2.on();
 
         let (ticker, listeners) = Ticker::new(mem);
 

@@ -1,3 +1,4 @@
+#[cfg(feature = "atmega32u4")]
 pub fn reset_irqs(dp: &arduino_hal::Peripherals) {
     dp.EXINT.eimsk.reset(); // disable INTn
     dp.EXINT.pcmsk0.reset(); // disable PCINTn
@@ -20,3 +21,6 @@ pub fn reset_irqs(dp: &arduino_hal::Peripherals) {
     dp.TWI.twcr.reset(); // disable TWI
     dp.BOOT_LOAD.spmcsr.reset(); // disable SPM_READY
 }
+
+#[cfg(not(feature = "atmega32u4"))]
+pub fn reset_irqs(_: &arduino_hal::Peripherals) {}

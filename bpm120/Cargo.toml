@@ -15,11 +15,18 @@ panic-halt = "0.2.0"
 avr-device = "0.3.4"
 heapless = { version = "0.7.16", default-features = false }
 
+[dependencies.avr-hal-generic]
+git = "https://github.com/rahix/avr-hal"
+rev = "1aacefb335517f85d0de858231e11055d9768cdf"
+
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
 rev = "1aacefb335517f85d0de858231e11055d9768cdf"
-features = ["arduino-leonardo"]
 
 [dependencies.avr-async]
 path = "../avr-async"
-features = ["atmega32u4"]
+
+[features]
+default = []
+atmega328p = ["avr-async/atmega328p", "arduino-hal/arduino-uno"]
+atmega32u4 = ["avr-async/atmega32u4", "arduino-hal/arduino-leonardo"]
