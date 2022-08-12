@@ -6,10 +6,10 @@ use core::{future::Future, mem::MaybeUninit, task::Poll};
 
 use arduino_hal::{
     hal::port::{PB0, PD5},
-    port::mode::Output,
+    port::{mode::Output, Pin},
 };
 use avr_async::{
-    r#yield,
+    main,
     slab::{Slab, SlabBox, Slabbed},
 };
 use panic_halt as _;
@@ -18,14 +18,13 @@ use avr_device::interrupt::{self, CriticalSection};
 
 mod util;
 
-#[avr_async::main(runtime = Runtime<1>)]
+#[main(runtime = Runtime<1>)]
 async fn main(
     [mut ticker]: [TickerListener; 1],
-    mut led1: arduino_hal::port::Pin<Output, PD5>,
-    mut led2: arduino_hal::port::Pin<Output, PB0>,
+    mut led1: Pin<Output, PD5>,
+    mut led2: Pin<Output, PB0>,
 ) {
     let mut status = false;
-    r#yield().await;
 
     loop {
         if ticker.next().await == 0 {
@@ -147,11 +146,7 @@ impl<const N: usize> avr_async::runtime::Ready for Runtime<N> {
 impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
     type Memory = Slab<Ticker<N>>;
 
-    type Arguments = (
-        [TickerListener; N],
-        arduino_hal::port::Pin<Output, PD5>,
-        arduino_hal::port::Pin<Output, PB0>,
-    );
+    type Arguments = ([TickerListener; N], Pin<Output, PD5>, Pin<Output, PB0>);
 
     fn new(mem: Self::Memory, _: &CriticalSection) -> (Self, Self::Arguments) {
         let peripherals = arduino_hal::Peripherals::take().unwrap();
