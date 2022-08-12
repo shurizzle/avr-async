@@ -42,6 +42,7 @@ static VTABLE: RawWakerVTable = {
     RawWakerVTable::new(clone, wake, wake_by_ref, drop)
 };
 
+#[inline(always)]
 pub fn run<R, F, Fut>(main: F) -> !
 where
     R: Runtime,
