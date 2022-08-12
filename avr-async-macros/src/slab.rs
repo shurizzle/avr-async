@@ -3,62 +3,19 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
-    parse::{Parse, ParseStream},
-    parse_quote,
-    punctuated::Punctuated,
-    spanned::Spanned,
-    token::Bracket,
-    AttrStyle, Attribute, Field, Fields, FieldsNamed, FieldsUnnamed, Item, Path, PathArguments,
-    PathSegment, Token, Type,
+    parse_quote, punctuated::Punctuated, spanned::Spanned, Field, Fields, FieldsNamed,
+    FieldsUnnamed, Item, Path, Token, Type,
 };
 
-use crate::common::{unraw, AttributeName};
-
-struct Attributes {
-    pub krate: Option<Path>,
-}
-
-impl Parse for Attributes {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Ok(Self { krate: None });
-        }
-
-        let mut krate = None;
-
-        let key = input.parse::<AttributeName>()?;
-
-        if key.name != "crate" {
-            return Err(syn::Error::new(
-                key.span,
-                format!("Invalid attribute {}", key.name),
-            ));
-        }
-
-        if krate.is_some() {
-            return Err(input.error("crate attribute defined multiple times"));
-        }
-
-        input.parse::<Token![=]>()?;
-        let value: Path = input.parse()?;
-        krate = Some(value);
-        if input.peek(Token![,]) {
-            input.parse::<Token![,]>()?;
-        }
-
-        if !input.is_empty() {
-            return Err(input.error("Invalid attributes"));
-        }
-
-        Ok(Self { krate })
-    }
-}
+use crate::common::{doc_hidden, unraw, CrateOnlyAttributes};
 
 pub fn imp(attrs: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
-    let krate = syn::parse::<Attributes>(attrs)?
-        .krate
-        .unwrap_or_else(|| syn::parse_str("::avr_async").unwrap());
-    generate(krate, input)
+    generate(
+        syn::parse::<CrateOnlyAttributes>(attrs)?
+            .krate
+            .map_or_else(|| syn::parse_str("::avr_async"), Ok)?,
+        input,
+    )
 }
 
 fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
@@ -83,23 +40,7 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
         ));
     }
 
-    let doc_hidden = Attribute {
-        pound_token: Token![#](span),
-        style: AttrStyle::Outer,
-        bracket_token: Bracket { span },
-        path: {
-            let mut segments = Punctuated::new();
-            segments.push_value(PathSegment {
-                ident: format_ident!("doc", span = span),
-                arguments: PathArguments::None,
-            });
-            Path {
-                leading_colon: None,
-                segments,
-            }
-        },
-        tokens: quote!((hidden)),
-    };
+    let dh = doc_hidden(span);
 
     let inst_ident = item.ident.clone();
     let mem_ident = format_ident!("__avr_async_{}_MEM", unraw(&item.ident), span = span);
@@ -124,7 +65,7 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
                 let ty: Type = parse_quote!(::core::mem::MaybeUninit<<#ty as #krate::slab::Slabbed>::InnerType>);
 
                 mfs.named.push_value(Field {
-                    attrs: vec![doc_hidden.clone()],
+                    attrs: vec![dh.clone()],
                     vis: f.vis.clone(),
                     ident: f.ident.clone(),
                     colon_token: f.colon_token,
@@ -171,7 +112,7 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
                 let ty: Type = parse_quote!(::core::mem::MaybeUninit<<#ty as #krate::slab::Slabbed>::InnerType>);
 
                 mfs.unnamed.push_value(Field {
-                    attrs: vec![doc_hidden.clone()],
+                    attrs: vec![dh.clone()],
                     vis: f.vis.clone(),
                     ident: None,
                     colon_token: None,
@@ -212,7 +153,7 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
 
     let mem_init = quote! {
         impl #mem_ident {
-            #doc_hidden
+            #dh
             const fn new() -> Self {
                 unsafe {
                     Self #mem_init
@@ -246,10 +187,10 @@ fn generate(krate: Path, input: TokenStream) -> syn::Result<TokenStream> {
     };
 
     Ok(quote! {
-        #doc_hidden
+        #dh
         #[allow(non_camel_case_types)]
         struct #mem_ident #mem_fields
-        #doc_hidden
+        #dh
         unsafe impl Sync for #mem_ident {}
         #mem_init
         #item

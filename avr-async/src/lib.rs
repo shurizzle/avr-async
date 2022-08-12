@@ -62,7 +62,7 @@ pub mod runtime;
 mod sealed;
 pub mod slab;
 pub(crate) mod tuple;
-pub use avr_async_macros::{main, slab};
+pub use avr_async_macros::{main, memory, slab};
 pub mod sync;
 mod sync_unsafe_cell;
 pub mod task;

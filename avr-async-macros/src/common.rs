@@ -1,8 +1,10 @@
 use proc_macro2::Span;
+use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, ParseStream},
-    token::Crate,
-    Ident, Path, Token,
+    punctuated::Punctuated,
+    token::{Bracket, Crate},
+    AttrStyle, Attribute, Ident, Path, PathArguments, PathSegment, Token,
 };
 
 pub struct Parameters<T: Parse> {
@@ -46,4 +48,64 @@ impl Parse for AttributeName {
 
 pub fn unraw(ident: &Ident) -> String {
     ident.to_string().trim_start_matches("r#").to_owned()
+}
+
+pub fn doc_hidden(span: Span) -> Attribute {
+    Attribute {
+        pound_token: Token![#](span),
+        style: AttrStyle::Outer,
+        bracket_token: Bracket { span },
+        path: {
+            let mut segments = Punctuated::new();
+            segments.push_value(PathSegment {
+                ident: format_ident!("doc", span = span),
+                arguments: PathArguments::None,
+            });
+            Path {
+                leading_colon: None,
+                segments,
+            }
+        },
+        tokens: quote!((hidden)),
+    }
+}
+
+pub struct CrateOnlyAttributes {
+    pub krate: Option<Path>,
+}
+
+impl Parse for CrateOnlyAttributes {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.is_empty() {
+            return Ok(Self { krate: None });
+        }
+
+        let mut krate = None;
+
+        let key = input.parse::<AttributeName>()?;
+
+        if key.name != "crate" {
+            return Err(syn::Error::new(
+                key.span,
+                format!("Invalid attribute {}", key.name),
+            ));
+        }
+
+        if krate.is_some() {
+            return Err(input.error("crate attribute defined multiple times"));
+        }
+
+        input.parse::<Token![=]>()?;
+        let value: Path = input.parse()?;
+        krate = Some(value);
+        if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+        }
+
+        if !input.is_empty() {
+            return Err(input.error("Invalid attributes"));
+        }
+
+        Ok(Self { krate })
+    }
 }
