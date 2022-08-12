@@ -6,6 +6,8 @@ use core::{
     task::Poll,
 };
 
+use avr_device::interrupt::CriticalSection;
+
 use crate::runtime::Ready;
 
 use super::semaphore::{Acquire, Semaphore};
@@ -38,6 +40,12 @@ impl<T, const N: usize> Mutex<T, N> {
                 core::mem::forget(x);
                 MutexGuard { mutex: self }
             })
+    }
+
+    #[doc(hidden)]
+    #[inline(always)]
+    pub fn get_mut(&mut self, _: &CriticalSection) -> &mut T {
+        self.value.get_mut()
     }
 }
 

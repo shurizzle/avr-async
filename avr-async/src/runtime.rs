@@ -16,6 +16,16 @@ pub trait Memory: Sized {
     unsafe fn from_ptr(mem: *mut Self::Slab) -> Self;
 }
 
+impl Memory for () {
+    type Slab = ();
+
+    #[inline(always)]
+    fn alloc() -> Self::Slab {}
+
+    #[inline(always)]
+    unsafe fn from_ptr(_: *mut ()) -> Self {}
+}
+
 impl<T: Slabbed> Memory for Slab<T> {
     type Slab = MaybeUninit<T::InnerType>;
 

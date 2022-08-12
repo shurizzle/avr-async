@@ -1,3 +1,4 @@
 /target
 /avr-async/src/chip/*
 /avr-async-macros/src/chip/*
+/examples/target

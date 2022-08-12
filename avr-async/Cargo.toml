@@ -12,6 +12,10 @@ heapless = { version = "0.7.15", default-features = false }
 either = { version = "1.7.0", default-features = false }
 avr-device = "0.3.4"
 
+[dependencies.avr-hal-generic]
+git = "https://github.com/rahix/avr-hal"
+rev = "1aacefb335517f85d0de858231e11055d9768cdf"
+
 [dependencies.avr-async-macros]
 path = "../avr-async-macros"
 
@@ -19,6 +23,7 @@ path = "../avr-async-macros"
 default = []
 time = []
 alloc = []
+twi = []
 
 at90usb1286 = ["avr-async-macros/at90usb1286"]
 atmega1280 = ["avr-async-macros/atmega1280"]

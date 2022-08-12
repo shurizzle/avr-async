@@ -1,6 +1,6 @@
 [workspace]
-members = ["avr-async", "avr-async-macros", "bpm120"]
-exclude = ["avr-device", "avr-async-runtime-gen"]
+members = ["avr-async", "avr-async-macros"]
+exclude = ["avr-device", "examples"]
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]

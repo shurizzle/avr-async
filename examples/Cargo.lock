@@ -12,6 +12,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "arduino-hal"
+version = "0.1.0"
+source = "git+https://github.com/rahix/avr-hal?rev=1aacefb335517f85d0de858231e11055d9768cdf#1aacefb335517f85d0de858231e11055d9768cdf"
+dependencies = [
+ "atmega-hal",
+ "avr-device",
+ "avr-hal-generic",
+ "cfg-if 1.0.0",
+ "embedded-hal",
+ "ufmt",
+ "void",
+]
+
+[[package]]
+name = "atmega-hal"
+version = "0.1.0"
+source = "git+https://github.com/rahix/avr-hal?rev=1aacefb335517f85d0de858231e11055d9768cdf#1aacefb335517f85d0de858231e11055d9768cdf"
+dependencies = [
+ "avr-device",
+ "avr-hal-generic",
+]
+
+[[package]]
 name = "atomic-polyfill"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -54,10 +77,22 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb5cf74147f0a7ef4b7b2b5cdd6bc04e749d050cf48ed2a40048db290165db4"
 dependencies = [
+ "avr-device-macros",
  "bare-metal 0.2.5",
  "cfg-if 0.1.10",
  "rustversion",
  "vcell",
+]
+
+[[package]]
+name = "avr-device-macros"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "474dda7ee758065593ae9fd53c9f95a38c1f7d44fac02a4d354838a6c40070d8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -161,6 +196,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "examples"
+version = "0.1.0"
+dependencies = [
+ "arduino-hal",
+ "avr-async",
+ "avr-device",
+ "avr-hal-generic",
+ "heapless",
+ "panic-halt",
+]
+
+[[package]]
 name = "hash32"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -227,6 +274,12 @@ checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "panic-halt"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "paste"
