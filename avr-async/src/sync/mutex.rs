@@ -81,6 +81,54 @@ impl<T, const N: usize> Drop for MutexGuard<'_, T, N> {
     }
 }
 
+impl<'a, T, const N: usize> MutexGuard<'a, T, N> {
+    pub fn map<U, F>(mut this: Self, f: F) -> MappedMutexGuard<'a, U, N>
+    where
+        F: FnOnce(&mut T) -> &mut U,
+    {
+        let data = f(&mut *this) as *mut U;
+        let s = &mut this.mutex.lock as *mut Semaphore<N>;
+        core::mem::forget(this);
+        MappedMutexGuard {
+            s: unsafe { &mut *s },
+            data,
+            marker: core::marker::PhantomData,
+        }
+    }
+}
+
+pub struct MappedMutexGuard<'a, T, const N: usize> {
+    s: &'a mut Semaphore<N>,
+    data: *mut T,
+    marker: core::marker::PhantomData<&'a mut T>,
+}
+
+unsafe impl<'a, T, const N: usize> Sync for MappedMutexGuard<'a, T, N> where T: Sync + 'a {}
+unsafe impl<'a, T, const N: usize> Send for MappedMutexGuard<'a, T, N> where T: Send + 'a {}
+
+impl<'a, T, const N: usize> Deref for MappedMutexGuard<'a, T, N> {
+    type Target = T;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.data }
+    }
+}
+
+impl<'a, T, const N: usize> DerefMut for MappedMutexGuard<'a, T, N> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.data }
+    }
+}
+
+impl<'a, T, const N: usize> Drop for MappedMutexGuard<'a, T, N> {
+    #[inline]
+    fn drop(&mut self) {
+        self.s.inner().release(1);
+    }
+}
+
 #[allow(clippy::type_complexity)]
 pub struct Lock<'a, T, const N: usize> {
     state: Option<(&'a mut Mutex<T, N>, Acquire<'a, N>)>,
