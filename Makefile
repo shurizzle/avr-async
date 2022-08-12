@@ -13,9 +13,9 @@ endif
 AVRDEV = avr-device
 AVRDEVGIT = $(AVRDEV)/.git
 
-all: avr-async/src/chip/mod.rs $(CHIPS)
+all: avr-async/src/chip/mod.rs avr-async-macros/src/chip/mod.rs $(CHIPS)
 
-$(foreach chip, $(CHIPS), $(eval $(chip): avr-async/src/chip/$(chip).rs))
+$(foreach chip, $(CHIPS), $(eval $(chip): avr-async/src/chip/$(chip).rs avr-async-macros/src/chip/$(chip).rs))
 
 avr-async/src/chip/mod.rs: $(foreach chip, $(CHIPS), avr-async/src/chip/$(chip).rs)
 	@($(foreach chip, $(CHIPS), $(ECHO) '#[cfg(feature = "$(chip)")]'; $(ECHO) '#[path = "$(chip).rs"]'; $(ECHO) 'mod inner;'; $(ECHO);) $(ECHO) '#[cfg(all(';$(foreach chip,$(CHIPS),$(ECHO) '   not(feature = "$(chip)"),';) $(ECHO) '))]'; $(ECHO) 'compile_error!("Select only one board");'; $(ECHO); $(ECHO) 'pub use inner::*;') > $@
@@ -36,7 +36,16 @@ avr-async/src/chip/%.rs: $(AVRDEV)/svd/%.svd.patched
 	@svd2async-runtime -v 1 $< > $@
 	@RUSTUP_TOOLCHAIN="$(RUSTUP_TOOLCHAIN)" rustfmt $@
 
+avr-async-macros/src/chip/%.rs: $(AVRDEV)/svd/%.svd.patched
+	@mkdir -p $(@D)
+	@$(ECHO) "\tFORM\t\t$*"
+	@(echo "pub const VECTORS: &[(usize, &str)] = &[" && (svd interrupts --no-gaps $< | awk '{print "    (" $$1 ", \""tolower(substr($$2, 1, length($$2)-1))"\"),"}') && echo "];") > $@
+	@RUSTUP_TOOLCHAIN="$(RUSTUP_TOOLCHAIN)" rustfmt $@
+
+avr-async-macros/src/chip/mod.rs: $(foreach chip, $(CHIPS), avr-async-macros/src/chip/$(chip).rs)
+	@($(foreach chip, $(CHIPS), $(ECHO) '#[cfg(feature = "$(chip)")]'; $(ECHO) '#[path = "$(chip).rs"]'; $(ECHO) 'mod inner;'; $(ECHO);) $(ECHO) '#[cfg(all(';$(foreach chip,$(CHIPS),$(ECHO) '   not(feature = "$(chip)"),';) $(ECHO) '))]'; $(ECHO) 'compile_error!("Select only one board");'; $(ECHO); $(ECHO) 'pub use inner::*;') > $@
+	@RUSTUP_TOOLCHAIN="$(RUSTUP_TOOLCHAIN)" rustfmt $@
+
 clean:
 	@$(MAKE) -C $(AVRDEV) clean
-	@rm -f $(foreach chip, $(CHIPS), avr-async/src/chip/$(chip).rs)
-	@rm -f avr-async/src/chip/mod.rs
+	@rm -f $(foreach chip, $(CHIPS), avr-async/src/chip/$(chip).rs avr-async-macros/src/chip/$(chip).rs) avr-async/src/chip/mod.rs

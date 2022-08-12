@@ -62,13 +62,14 @@ pub mod runtime;
 mod sealed;
 pub mod slab;
 pub(crate) mod tuple;
-pub use avr_async_macros::slab;
+pub use avr_async_macros::{main, slab};
 pub mod sync;
 mod sync_unsafe_cell;
 pub mod task;
 #[cfg(feature = "time")]
 pub mod time;
 
+pub use avr_device::interrupt::CriticalSection;
 pub use sync_unsafe_cell::SyncUnsafeCell;
 
 use core::{future::Future, task::Poll};

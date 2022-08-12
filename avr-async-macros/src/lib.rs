@@ -1,6 +1,8 @@
 use proc_macro::TokenStream;
 
+pub(crate) mod chip;
 pub(crate) mod common;
+mod main;
 mod slab;
 mod task;
 
@@ -19,4 +21,9 @@ pub fn task_compose(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn slab(attrs: TokenStream, input: TokenStream) -> TokenStream {
     wrap_imp(slab::imp(attrs, input))
+}
+
+#[proc_macro_attribute]
+pub fn main(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    wrap_imp(main::imp(attrs, input))
 }

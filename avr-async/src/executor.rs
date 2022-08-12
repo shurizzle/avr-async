@@ -11,9 +11,15 @@ use crate::{
     runtime::{Memory, Runtime},
 };
 
+#[doc(hidden)]
 pub mod __private {
     #[no_mangle]
     pub static mut RUNTIME: crate::chip::RawRuntime = crate::chip::RawRuntime::uninit();
+
+    #[inline(always)]
+    pub unsafe fn get<'a, T: crate::runtime::Runtime>() -> &'a mut T {
+        &mut *(RUNTIME.data as *mut T)
+    }
 }
 
 static VTABLE: RawWakerVTable = {
@@ -21,12 +27,12 @@ static VTABLE: RawWakerVTable = {
         unimplemented!()
     }
 
-    unsafe fn wake(p: *const ()) {
-        wake_by_ref(p)
+    unsafe fn wake(_: *const ()) {
+        crate::executor::wake()
     }
 
-    unsafe fn wake_by_ref(p: *const ()) {
-        RawRuntime::from_ptr(p).wake()
+    unsafe fn wake_by_ref(_: *const ()) {
+        crate::executor::wake()
     }
 
     unsafe fn drop(_: *const ()) {
@@ -86,6 +92,12 @@ where
 }
 
 #[doc(hidden)]
+#[inline(always)]
 pub unsafe fn wake() {
-    self::__private::RUNTIME.wake()
+    __avr_async_runtime_wake()
+}
+
+extern "Rust" {
+    #[doc(hidden)]
+    fn __avr_async_runtime_wake();
 }

@@ -7,52 +7,15 @@ use syn::{
     parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::{Bracket, Crate},
-    AttrStyle, Attribute, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, Item, Path,
-    PathArguments, PathSegment, Token, Type,
+    token::Bracket,
+    AttrStyle, Attribute, Field, Fields, FieldsNamed, FieldsUnnamed, Item, Path, PathArguments,
+    PathSegment, Token, Type,
 };
 
-use crate::common::unraw;
+use crate::common::{unraw, AttributeName};
 
-pub struct SlabDef {
-    pub ident: Ident,
-    pub fields: FieldsNamed,
-    pub semi_token: Option<Token![;]>,
-}
-
-impl Parse for SlabDef {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            ident: input.parse()?,
-            fields: input.parse()?,
-            semi_token: input.parse()?,
-        })
-    }
-}
-
-pub struct Attributes {
+struct Attributes {
     pub krate: Option<Path>,
-}
-
-pub struct AttributeName {
-    pub span: Span,
-    pub name: String,
-}
-
-fn parse_key(input: &ParseStream) -> syn::Result<AttributeName> {
-    if input.peek(Ident) {
-        input.parse::<Ident>().map(|x| AttributeName {
-            span: x.span(),
-            name: unraw(&x),
-        })
-    } else if input.peek(Crate) {
-        input.parse::<Crate>().map(|x| AttributeName {
-            span: x.span,
-            name: "crate".to_string(),
-        })
-    } else {
-        Err(input.error("Expected ident"))
-    }
 }
 
 impl Parse for Attributes {
@@ -63,7 +26,7 @@ impl Parse for Attributes {
 
         let mut krate = None;
 
-        let key = parse_key(&input)?;
+        let key = input.parse::<AttributeName>()?;
 
         if key.name != "crate" {
             return Err(syn::Error::new(

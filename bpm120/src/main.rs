@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
-// #![feature(abi_avr_interrupt, asm_experimental_arch)]
-#![feature(asm_experimental_arch)]
+#![feature(abi_avr_interrupt, asm_experimental_arch)]
 
 use core::{future::Future, mem::MaybeUninit, task::Poll};
 
@@ -18,6 +17,31 @@ use panic_halt as _;
 use avr_device::interrupt::{self, CriticalSection};
 
 mod util;
+
+#[avr_async::main(runtime = Runtime<1>)]
+async fn main(
+    [mut ticker]: [TickerListener; 1],
+    mut led1: arduino_hal::port::Pin<Output, PD5>,
+    mut led2: arduino_hal::port::Pin<Output, PB0>,
+) {
+    let mut status = false;
+    r#yield().await;
+
+    loop {
+        if ticker.next().await == 0 {
+            led1.set_low();
+            led2.set_low();
+        } else if status {
+            led1.set_low();
+            led2.set_high();
+            status = false;
+        } else {
+            led1.set_high();
+            led2.set_low();
+            status = true;
+        }
+    }
+}
 
 pub type TickerSlab<const N: usize> = [Option<u8>; N];
 
@@ -182,7 +206,7 @@ impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
 
     #[inline]
     fn wake(&mut self) {
-        unsafe { core::ptr::write_volatile(&mut self.ready, true) }
+        self.ready = true;
     }
 
     #[inline]
@@ -194,37 +218,8 @@ impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
     #[inline]
     unsafe fn timer1_compa(&mut self, _cs: &CriticalSection) {
         if self.ticker.tick() {
+            ::avr_async::executor::wake();
             self.wake()
         }
     }
-}
-
-async fn main(
-    [mut ticker]: [TickerListener; 1],
-    mut led1: arduino_hal::port::Pin<Output, PD5>,
-    mut led2: arduino_hal::port::Pin<Output, PB0>,
-) {
-    let mut status = false;
-    r#yield().await;
-
-    loop {
-        if ticker.next().await == 0 {
-            led1.set_low();
-            led2.set_low();
-        } else if status {
-            led1.set_low();
-            led2.set_high();
-            status = false;
-        } else {
-            led1.set_high();
-            led2.set_low();
-            status = true;
-        }
-    }
-}
-
-#[doc(hidden)]
-#[export_name = "main"]
-pub unsafe extern "C" fn __avr_async_main() -> ! {
-    avr_async::executor::run::<Runtime<1>, _, _>(main)
 }
