@@ -16,7 +16,7 @@ mod util;
 
 #[cfg(feature = "atmega32u4")]
 mod leds {
-    use arduino_hal::hal::port::{mode::Output, Pin, PB0, PD5};
+    use avr_async::hal::port::{mode::Output, Pin, PB0, PD5};
     use avr_hal_generic::port::PinOps;
 
     pub struct Led<P: PinOps> {
@@ -51,7 +51,7 @@ mod leds {
 
 #[cfg(feature = "atmega328p")]
 mod leds {
-    use arduino_hal::hal::port::{mode::Output, Pin, PC0, PC1};
+    use avr_async::hal::port::{mode::Output, Pin, PC0, PC1};
     use avr_hal_generic::port::PinOps;
 
     pub struct Led<P: PinOps> {
@@ -201,7 +201,7 @@ impl<'a> Future for NextTick<'a> {
 }
 
 pub struct Runtime<const N: usize> {
-    cpu: arduino_hal::pac::CPU,
+    cpu: avr_async::hal::pac::CPU,
     ticker: Ticker<N>,
     ready: bool,
 }
@@ -219,7 +219,7 @@ impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
     type Arguments = ([TickerListener; N], Led1, Led2);
 
     fn new(mem: Self::Memory, _: &CriticalSection) -> (Self, Self::Arguments) {
-        let peripherals = arduino_hal::Peripherals::take().unwrap();
+        let peripherals = avr_async::Peripherals::take().unwrap();
 
         util::reset_irqs(&peripherals);
 
@@ -237,17 +237,17 @@ impl<const N: usize> avr_async::runtime::Runtime for Runtime<N> {
         }
 
         let (mut led1, mut led2) = {
-            let pins = arduino_hal::pins!(peripherals);
+            let pins = avr_async::pins!(peripherals);
 
             #[cfg(feature = "atmega32u4")]
-            let led1 = pins.led_tx;
+            let led1 = pins.pd5;
             #[cfg(feature = "atmega32u4")]
-            let led2 = pins.led_rx;
+            let led2 = pins.pb0;
 
             #[cfg(feature = "atmega328p")]
-            let led1 = pins.a0;
+            let led1 = pins.pc0;
             #[cfg(feature = "atmega328p")]
-            let led2 = pins.a1;
+            let led2 = pins.pc1;
 
             (Led1::new(led1.into_output()), Led2::new(led2.into_output()))
         };

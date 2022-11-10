@@ -7,4 +7,4 @@ runner = "ravedude uno"
 #runner = "ravedude leonardo"
 
 [unstable]
-build-std = ["core", "alloc"]
+build-std = ["core"]

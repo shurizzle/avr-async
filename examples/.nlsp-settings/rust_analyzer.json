@@ -1,0 +1,7 @@
+{
+  "rust-analyzer.cargo": {
+    "allFeatures": false,
+    "features": ["atmega328p"]
+  }
+}
+

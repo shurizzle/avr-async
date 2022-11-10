@@ -39,15 +39,11 @@ heapless = { version = "0.7.16", default-features = false }
 git = "https://github.com/rahix/avr-hal"
 rev = "1aacefb335517f85d0de858231e11055d9768cdf"
 
-[dependencies.arduino-hal]
-git = "https://github.com/rahix/avr-hal"
-rev = "1aacefb335517f85d0de858231e11055d9768cdf"
-
 [dependencies.avr-async]
 path = "../avr-async"
 features = ["twi"]
 
 [features]
 default = []
-atmega328p = ["avr-async/atmega328p", "arduino-hal/arduino-uno"]
-#atmega32u4 = ["avr-async/atmega32u4", "arduino-hal/arduino-leonardo"]
+atmega328p = ["avr-async/atmega328p"]
+atmega32u4 = ["avr-async/atmega32u4"]

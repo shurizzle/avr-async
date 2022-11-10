@@ -73,6 +73,12 @@ where
 
         pin_mut!(task);
 
+        if let Poll::Ready(()) = task.as_mut().poll(&mut context) {
+            loop {
+                runtime.shutdown();
+            }
+        }
+
         loop {
             ::core::arch::asm!("cli");
             if runtime.is_ready(&cs) {

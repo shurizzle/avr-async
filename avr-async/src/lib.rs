@@ -68,6 +68,8 @@ mod sync_unsafe_cell;
 pub mod task;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "twi")]
+pub mod twi;
 
 pub use avr_device::interrupt::CriticalSection;
 pub use sync_unsafe_cell::SyncUnsafeCell;
@@ -109,4 +111,56 @@ pub fn ayield() -> Yield {
 #[inline]
 pub fn r#yield() -> Yield {
     Yield::new()
+}
+
+pub mod reexports {
+    pub mod avr_hal_generic {
+        pub use avr_hal_generic::*;
+    }
+}
+
+pub mod hal {
+    #[cfg(any(
+        feature = "atmega1280",
+        feature = "atmega168",
+        feature = "atmega2560",
+        feature = "atmega328p",
+        feature = "atmega328pb",
+        feature = "atmega32u4",
+        feature = "atmega48p",
+    ))]
+    pub use atmega_hal::*;
+
+    #[cfg(any(
+        feature = "attiny84",
+        feature = "attiny85",
+        feature = "attiny88",
+        feature = "attiny167",
+    ))]
+    pub use attiny_hal::*;
+}
+
+pub use crate::hal::pins;
+pub use crate::hal::Peripherals;
+
+#[cfg(feature = "atmega328p")]
+pub fn led1() {
+    #[allow(clippy::uninit_assumed_init)]
+    let peripheral =
+        unsafe { core::mem::MaybeUninit::<crate::Peripherals>::uninit().assume_init() };
+    let pins = crate::pins!(peripheral);
+    let mut led = pins.pc0.into_output();
+
+    led.toggle();
+}
+
+#[cfg(feature = "atmega328p")]
+pub fn led2() {
+    #[allow(clippy::uninit_assumed_init)]
+    let peripheral =
+        unsafe { core::mem::MaybeUninit::<crate::Peripherals>::uninit().assume_init() };
+    let pins = crate::pins!(peripheral);
+    let mut led = pins.pc1.into_output();
+
+    led.toggle();
 }

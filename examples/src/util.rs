@@ -1,5 +1,5 @@
 #[cfg(feature = "atmega32u4")]
-pub fn reset_irqs(dp: &arduino_hal::Peripherals) {
+pub fn reset_irqs(dp: &avr_async::Peripherals) {
     dp.EXINT.eimsk.reset(); // disable INTn
     dp.EXINT.pcmsk0.reset(); // disable PCINTn
     dp.TC0.timsk0.reset(); // disable TIMER0_* irqs
@@ -23,4 +23,4 @@ pub fn reset_irqs(dp: &arduino_hal::Peripherals) {
 }
 
 #[cfg(not(feature = "atmega32u4"))]
-pub fn reset_irqs(_: &arduino_hal::Peripherals) {}
+pub fn reset_irqs(_: &avr_async::Peripherals) {}

@@ -12,12 +12,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "atmega-hal"
+version = "0.1.0"
+source = "git+https://github.com/rahix/avr-hal?rev=1aacefb335517f85d0de858231e11055d9768cdf#1aacefb335517f85d0de858231e11055d9768cdf"
+dependencies = [
+ "avr-device",
+ "avr-hal-generic",
+]
+
+[[package]]
 name = "atomic-polyfill"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c041a8d9751a520ee19656232a18971f18946a7900f1520ee4400002244dd89"
 dependencies = [
  "critical-section",
+]
+
+[[package]]
+name = "attiny-hal"
+version = "0.1.0"
+source = "git+https://github.com/rahix/avr-hal?rev=1aacefb335517f85d0de858231e11055d9768cdf#1aacefb335517f85d0de858231e11055d9768cdf"
+dependencies = [
+ "avr-device",
+ "avr-hal-generic",
 ]
 
 [[package]]
@@ -30,6 +48,8 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "avr-async"
 version = "0.1.0"
 dependencies = [
+ "atmega-hal",
+ "attiny-hal",
  "avr-async-macros",
  "avr-device",
  "avr-hal-generic",

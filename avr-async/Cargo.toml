@@ -12,6 +12,16 @@ heapless = { version = "0.7.15", default-features = false }
 either = { version = "1.7.0", default-features = false }
 avr-device = "0.3.4"
 
+[dependencies.atmega-hal]
+git = "https://github.com/rahix/avr-hal"
+rev = "1aacefb335517f85d0de858231e11055d9768cdf"
+optional = true
+
+[dependencies.attiny-hal]
+git = "https://github.com/rahix/avr-hal"
+rev = "1aacefb335517f85d0de858231e11055d9768cdf"
+optional = true
+
 [dependencies.avr-hal-generic]
 git = "https://github.com/rahix/avr-hal"
 rev = "1aacefb335517f85d0de858231e11055d9768cdf"
@@ -25,31 +35,32 @@ time = []
 alloc = []
 twi = []
 
-at90usb1286 = ["avr-async-macros/at90usb1286"]
-atmega1280 = ["avr-async-macros/atmega1280"]
-atmega1284p = ["avr-async-macros/atmega1284p"]
-atmega128rfa1 = ["avr-async-macros/atmega128rfa1"]
-atmega164pa = ["avr-async-macros/atmega164pa"]
-atmega168 = ["avr-async-macros/atmega168"]
-atmega2560 = ["avr-async-macros/atmega2560"]
-atmega8 = ["avr-async-macros/atmega8"]
-atmega8u2 = ["avr-async-macros/atmega8u2"]
-atmega328p = ["avr-async-macros/atmega328p"]
-atmega328pb = ["avr-async-macros/atmega328pb"]
-atmega32u4 = ["avr-async-macros/atmega32u4"]
-atmega4809 = ["avr-async-macros/atmega4809"]
-atmega48p = ["avr-async-macros/atmega48p"]
-atmega64 = ["avr-async-macros/atmega64"]
-atmega644 = ["avr-async-macros/atmega644"]
-attiny13a = ["avr-async-macros/attiny13a"]
-attiny202 = ["avr-async-macros/attiny202"]
-attiny2313 = ["avr-async-macros/attiny2313"]
-attiny2313a = ["avr-async-macros/attiny2313a"]
-attiny84 = ["avr-async-macros/attiny84"]
-attiny85 = ["avr-async-macros/attiny85"]
-attiny88 = ["avr-async-macros/attiny88"]
-attiny816 = ["avr-async-macros/attiny816"]
-attiny841 = ["avr-async-macros/attiny841"]
-attiny861 = ["avr-async-macros/attiny861"]
-attiny167 = ["avr-async-macros/attiny167"]
-attiny1614 = ["avr-async-macros/attiny1614"]
+# at90usb1286 = ["avr-async-macros/at90usb1286", "atmega-hal/at90usb1286"]
+# atmega1284p = ["avr-async-macros/atmega1284p", "atmega-hal/atmega1284p"]
+# atmega128rfa1 = ["avr-async-macros/atmega128rfa1", "atmega-hal/atmega128rfa1"]
+# atmega164pa = ["avr-async-macros/atmega164pa", "atmega-hal/atmega164pa"]
+# atmega64 = ["avr-async-macros/atmega64", "atmega-hal/atmega64"]
+# atmega8 = ["avr-async-macros/atmega8", "atmega-hal/atmega8"]
+# atmega8u2 = ["avr-async-macros/atmega8u2", "atmega-hal/atmega8u2"]
+# atmega4809 = ["avr-async-macros/atmega4809", "atmega-hal/atmega4809"]
+# atmega644 = ["avr-async-macros/atmega644", "atmega-hal/atmega644"]
+# attiny13a = ["avr-async-macros/attiny13a", "attiny-hal/attiny13a"]
+# attiny202 = ["avr-async-macros/attiny202", "attiny-hal/attiny202"]
+# attiny2313 = ["avr-async-macros/attiny2313", "attiny-hal/attiny2313"]
+# attiny2313a = ["avr-async-macros/attiny2313a", "attiny-hal/attiny2313a"]
+# attiny816 = ["avr-async-macros/attiny816", "attiny-hal/attiny816"]
+# attiny841 = ["avr-async-macros/attiny841", "attiny-hal/attiny841"]
+# attiny861 = ["avr-async-macros/attiny861", "attiny-hal/attiny861"]
+# attiny1614 = ["avr-async-macros/attiny1614", "attiny-hal/attiny1614"]
+
+atmega1280 = ["avr-async-macros/atmega1280", "atmega-hal/atmega1280"]
+atmega168 = ["avr-async-macros/atmega168", "atmega-hal/atmega168"]
+atmega2560 = ["avr-async-macros/atmega2560", "atmega-hal/atmega2560"]
+atmega328p = ["avr-async-macros/atmega328p", "atmega-hal/atmega328p"]
+atmega328pb = ["avr-async-macros/atmega328pb", "atmega-hal/atmega328pb"]
+atmega32u4 = ["avr-async-macros/atmega32u4", "atmega-hal/atmega32u4"]
+atmega48p = ["avr-async-macros/atmega48p", "atmega-hal/atmega48p"]
+attiny84 = ["avr-async-macros/attiny84", "attiny-hal/attiny84"]
+attiny85 = ["avr-async-macros/attiny85", "attiny-hal/attiny85"]
+attiny88 = ["avr-async-macros/attiny88", "attiny-hal/attiny88"]
+attiny167 = ["avr-async-macros/attiny167", "attiny-hal/attiny167"]
